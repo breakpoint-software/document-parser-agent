@@ -1,0 +1,61 @@
+name: Build to Docker Hub and Deploy to Cloud Run
+
+on:
+  push:
+    branches: [ "main" ]
+
+env:
+  # Docker Hub Image details matching your Cloud Run UI configuration
+  DOCKERHUB_IMAGE: "breakpointsoftware/document-parser-agent-api"
+  
+  # Cloud Run details
+  SERVICE_NAME: "document-parser-agent-api-1"
+  REGION: "us-central1" # Change to your Cloud Run region if different
+  PORT: "8000"
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+
+    permissions:
+      contents: 'read'
+      id-token: 'write' # Required for GCP OIDC Authentication
+
+    steps:
+      # 1. Checkout repository code
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      # 2. Log in to Docker Hub
+      - name: Log in to Docker Hub
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      # 3. Build and Push Docker image from the "document-parser" subfolder
+      - name: Build and Push to Docker Hub
+        uses: docker/build-push-action@v5
+        with:
+          context: ./document-parser         # <--- Subfolder containing your app code
+          file: ./document-parser/Dockerfile # <--- Subfolder containing Dockerfile
+          push: true
+          tags: |
+            ${{ env.DOCKERHUB_IMAGE }}:latest
+            ${{ env.DOCKERHUB_IMAGE }}:${{ github.sha }}
+
+      # 4. Authenticate to Google Cloud
+      - name: Authenticate to Google Cloud
+        uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ secrets.GCP_WORKLOAD_IDENTITY_PROVIDER }}
+          service_account: ${{ secrets.GCP_SERVICE_ACCOUNT }}
+
+      # 5. Deploy Docker Hub Image to Google Cloud Run
+      - name: Deploy to Cloud Run
+        uses: google-github-actions/deploy-cloudrun@v2
+        with:
+          service: ${{ env.SERVICE_NAME }}
+          region: ${{ env.REGION }}
+          image: ${{ env.DOCKERHUB_IMAGE }}:${{ github.sha }}
+          flags: '--port=${{ env.PORT }} --allow-unauthenticated'
