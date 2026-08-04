@@ -12,7 +12,7 @@ from dotenv import load_dotenv
 from google.oauth2.credentials import Credentials
 
 from document_processing import SUPPORTED_EXTENSIONS
-from google_oauth_credentials import GoogleOAuthConfigError, build_google_oauth_credentials
+from google_oauth_credentials import GOOGLE_OAUTH_SCOPES, GoogleOAuthConfigError, build_google_oauth_credentials
 
 
 load_dotenv()
@@ -26,11 +26,10 @@ if not logger.handlers:
 logger.setLevel(logging.INFO)
 logger.propagate = False
 
-
-DRIVE_READONLY_SCOPE = "https://www.googleapis.com/auth/drive.readonly"
-DRIVE_FULL_SCOPE = "https://www.googleapis.com/auth/drive"
+DRIVE_FILE_SCOPE = "https://www.googleapis.com/auth/drive.file"
+DRIVE_METADATA_READONLY_SCOPE = "https://www.googleapis.com/auth/drive.metadata.readonly"
 FOLDER_MIME_TYPE = "application/vnd.google-apps.folder"
-
+    
 # Google Workspace files require export, while binary files can be downloaded directly.
 SUPPORTED_EXPORT_MIME_MAP = {
     "application/vnd.google-apps.document": (
@@ -82,21 +81,20 @@ def load_drive_folder_ids_from_env(env_var: str = "GOOGLE_DRIVE_FOLDER_IDS") -> 
     return folder_ids
 
 
-def build_drive_credentials(scope: str = DRIVE_READONLY_SCOPE, refresh_token: str | None = None) -> Credentials:
+def build_drive_credentials(refresh_token: str | None = None) -> Credentials:
     """Build Google Drive credentials.
     
     Args:
-        scope: OAuth scope for the credentials
         refresh_token: Tenant OAuth refresh token. Falls back to GOOGLE_REFRESH_TOKEN.
     """
     try:
-        return build_google_oauth_credentials(refresh_token, [scope])
+        return build_google_oauth_credentials(refresh_token, GOOGLE_OAUTH_SCOPES)
     except GoogleOAuthConfigError as exc:
         raise GoogleDriveConfigError(str(exc)) from exc
 
 
 def build_drive_service(
-    scope: str = DRIVE_READONLY_SCOPE,
+    scope: str | list[str] = DRIVE_FILE_SCOPE,
     refresh_token: str | None = None,
     credentials: Credentials | None = None,
 ):
@@ -114,7 +112,7 @@ def build_drive_service(
             "google-api-python-client is required for Drive scanning. Add it to requirements and install dependencies."
         ) from exc
 
-    resolved_credentials = credentials or build_drive_credentials(scope=scope, refresh_token=refresh_token)
+    resolved_credentials = credentials or build_drive_credentials(refresh_token=refresh_token)
     logger.info("Building Drive service with scope=%s", scope)
     return build("drive", "v3", credentials=resolved_credentials, cache_discovery=False)
 

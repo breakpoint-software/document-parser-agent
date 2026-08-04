@@ -7,6 +7,12 @@ from google.oauth2.credentials import Credentials
 
 
 GOOGLE_TOKEN_URI = "https://oauth2.googleapis.com/token"
+GOOGLE_OAUTH_SCOPES = [
+    "https://www.googleapis.com/auth/drive.file",
+    "https://www.googleapis.com/auth/drive.metadata.readonly",
+    "https://www.googleapis.com/auth/spreadsheets",
+    "https://www.googleapis.com/auth/userinfo.email",
+]
 
 
 class GoogleOAuthConfigError(RuntimeError):
@@ -33,11 +39,13 @@ def build_google_oauth_credentials(
     if missing:
         raise GoogleOAuthConfigError(f"Missing Google OAuth configuration: {', '.join(missing)}.")
 
+    # Google refresh grants reuse the scopes approved during login. Supplying
+    # scopes here makes google-auth add a scope parameter that Google rejects.
+    _ = scopes
     return Credentials(
         token=None,
         refresh_token=resolved_refresh_token,
         token_uri=GOOGLE_TOKEN_URI,
         client_id=client_id,
         client_secret=client_secret,
-        scopes=list(scopes),
     )

@@ -47,7 +47,8 @@ class GoogleOAuthTests(unittest.TestCase):
         self.assertEqual(credentials.refresh_token, "saved-refresh-token")
         self.assertEqual(credentials.client_id, "client-id")
         self.assertEqual(credentials.client_secret, "client-secret")
-        self.assertEqual(credentials.scopes, ["drive-scope", "sheets-scope"])
+        self.assertIsNone(credentials.scopes)
+        self.assertIsNone(credentials.default_scopes)
 
     @patch("google_drive_service.build_drive_service")
     @patch("google_drive_service._list_files_from_folder", return_value=[])

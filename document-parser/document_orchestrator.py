@@ -24,14 +24,14 @@ from firebase_tenant_config import (
 	TenantConfig,
 )
 from google_drive_service import (
-	DRIVE_FULL_SCOPE,
+	DRIVE_FILE_SCOPE,
+	DRIVE_METADATA_READONLY_SCOPE,
 	GoogleDriveConfigError,
 	build_drive_service,
 	move_file_to_path,
 	scan_drive_supported_documents,
 )
-from google_oauth_credentials import GoogleOAuthConfigError, build_google_oauth_credentials
-from google_sheets_service import SCOPES as GOOGLE_SHEETS_SCOPES
+from google_oauth_credentials import GOOGLE_OAUTH_SCOPES, GoogleOAuthConfigError, build_google_oauth_credentials
 from google_sheets_service import GoogleSheetsConfigError, append_row_to_google_sheet
 from receipt_ai import extract_receipt_json, extract_receipt_json_from_image, extract_receipt_json_from_pdf, extract_receipt_json_from_document
 from receipt_results import build_empty_result
@@ -303,9 +303,9 @@ def orchestrate_single_rule(
 	try:
 		google_credentials = build_google_oauth_credentials(
 			tenant_config.credentials.google_refresh_token,
-			[DRIVE_FULL_SCOPE, *GOOGLE_SHEETS_SCOPES],
+			GOOGLE_OAUTH_SCOPES,
 		)
-		drive_service = build_drive_service(scope=DRIVE_FULL_SCOPE, credentials=google_credentials)
+		drive_service = build_drive_service(scope=[DRIVE_FILE_SCOPE, DRIVE_METADATA_READONLY_SCOPE], credentials=google_credentials)
 		
 		# Scan the rule's source folder
 		scan_result = scan_drive_supported_documents(

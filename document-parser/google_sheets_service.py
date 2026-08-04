@@ -9,13 +9,10 @@ from dotenv import load_dotenv
 from gspread.exceptions import WorksheetNotFound
 from google.oauth2.credentials import Credentials
 
-from google_oauth_credentials import GoogleOAuthConfigError, build_google_oauth_credentials
+from google_oauth_credentials import GOOGLE_OAUTH_SCOPES, GoogleOAuthConfigError, build_google_oauth_credentials
 
 
-SCOPES = [
-    "https://www.googleapis.com/auth/spreadsheets",
-    "https://www.googleapis.com/auth/drive",
-]
+SCOPES = GOOGLE_OAUTH_SCOPES
 
 
 load_dotenv()
