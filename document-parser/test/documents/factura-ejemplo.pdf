@@ -1,0 +1,285 @@
+%PDF-1.4
+1 0 obj
+<<
+/Type /Catalog
+/Pages 2 0 R
+>>
+endobj
+2 0 obj
+<<
+/Type /Pages
+/Kids [3 0 R]
+/Count 1
+>>
+endobj
+3 0 obj
+<<
+/Type /Page
+/Parent 2 0 R
+/Resources <<
+/Font <<
+/F1 4 0 R
+>>
+>>
+/MediaBox [0 0 612 792]
+/Contents 5 0 R
+>>
+endobj
+4 0 obj
+<<
+/Type /Font
+/Subtype /Type1
+/BaseFont /Helvetica
+>>
+endobj
+5 0 obj
+<<
+/Length 2500
+>>
+stream
+BT
+/F1 14 Tf
+50 700 Td
+(Factura) Tj
+ET
+
+BT
+/F1 10 Tf
+50 680 Td
+(Fecha de factura: 17/04/2024) Tj
+ET
+
+BT
+/F1 10 Tf
+50 665 Td
+(Numero de factura: 2024-0001) Tj
+ET
+
+BT
+/F1 10 Tf
+50 650 Td
+(Fecha de vencimiento: 17/05/2024) Tj
+ET
+
+BT
+/F1 11 Tf
+50 610 Td
+(Orlando Juan Loban) Tj
+ET
+
+BT
+/F1 9 Tf
+50 595 Td
+(Direccion: Avenida Rosario 2, 1 A) Tj
+ET
+
+BT
+/F1 9 Tf
+50 580 Td
+(NIF: 39000001A) Tj
+ET
+
+BT
+/F1 9 Tf
+50 565 Td
+(CP y ciudad: 08001, Barcelona) Tj
+ET
+
+BT
+/F1 9 Tf
+50 550 Td
+(Email: info@orlandojuan.es) Tj
+ET
+
+BT
+/F1 11 Tf
+350 610 Td
+(Empresa de logistica, S. L.) Tj
+ET
+
+BT
+/F1 9 Tf
+350 595 Td
+(Direccion: Calle San Juan de la Luz, s/n) Tj
+ET
+
+BT
+/F1 9 Tf
+350 580 Td
+(CIF: B12345678) Tj
+ET
+
+BT
+/F1 9 Tf
+350 565 Td
+(CP y ciudad: 28001, Madrid) Tj
+ET
+
+BT
+/F1 9 Tf
+350 550 Td
+(Email: info@empresalogisitasl.com) Tj
+ET
+
+BT
+/F1 10 Tf
+50 500 Td
+(Descripcion) Tj
+ET
+
+BT
+/F1 10 Tf
+150 500 Td
+(Unidades) Tj
+ET
+
+BT
+/F1 10 Tf
+250 500 Td
+(Precio Unitario) Tj
+ET
+
+BT
+/F1 10 Tf
+400 500 Td
+(Precio) Tj
+ET
+
+BT
+/F1 9 Tf
+50 480 Td
+(Producto 1) Tj
+ET
+
+BT
+/F1 9 Tf
+150 480 Td
+(2) Tj
+ET
+
+BT
+/F1 9 Tf
+250 480 Td
+(100 EUR) Tj
+ET
+
+BT
+/F1 9 Tf
+400 480 Td
+(200 EUR) Tj
+ET
+
+BT
+/F1 9 Tf
+50 460 Td
+(Producto 2) Tj
+ET
+
+BT
+/F1 9 Tf
+150 460 Td
+(4) Tj
+ET
+
+BT
+/F1 9 Tf
+250 460 Td
+(150 EUR) Tj
+ET
+
+BT
+/F1 9 Tf
+400 460 Td
+(600 EUR) Tj
+ET
+
+BT
+/F1 9 Tf
+50 440 Td
+(Producto 3) Tj
+ET
+
+BT
+/F1 9 Tf
+150 440 Td
+(7) Tj
+ET
+
+BT
+/F1 9 Tf
+250 440 Td
+(93 EUR) Tj
+ET
+
+BT
+/F1 9 Tf
+400 440 Td
+(651 EUR) Tj
+ET
+
+BT
+/F1 10 Tf
+50 400 Td
+(BASE IMPONIBLE:) Tj
+ET
+
+BT
+/F1 10 Tf
+400 400 Td
+(1451 EUR) Tj
+ET
+
+BT
+/F1 10 Tf
+50 380 Td
+(IVA (21 %):) Tj
+ET
+
+BT
+/F1 10 Tf
+400 380 Td
+(305 EUR) Tj
+ET
+
+BT
+/F1 10 Tf
+50 360 Td
+(IRPF (- 15 %):) Tj
+ET
+
+BT
+/F1 10 Tf
+400 360 Td
+(-218 EUR) Tj
+ET
+
+BT
+/F1 12 Tf
+50 340 Td
+(TOTAL:) Tj
+ET
+
+BT
+/F1 12 Tf
+400 340 Td
+(1538 EUR) Tj
+ET
+
+endstream
+endobj
+xref
+0 6
+0000000000 65535 f 
+0000000009 00000 n 
+0000000058 00000 n 
+0000000115 00000 n 
+0000000244 00000 n 
+0000000333 00000 n 
+trailer
+<<
+/Size 6
+/Root 1 0 R
+>>
+startxref
+2883
+%%EOF

@@ -1,0 +1,26 @@
+PURCHASE RECEIPT
+=================
+
+Receipt Number: REC-2024-002
+Date: 2024-01-18
+Due Date: None
+
+VENDOR INFORMATION:
+Name: Online Retailer
+CUIT: 20-99999999-9
+
+ITEMS PURCHASED:
+1. Product A - $75.50
+2. Product B - $125.00
+3. Shipping - $15.00
+
+SUMMARY:
+Subtotal: $215.50
+Taxes (21%): $45.26
+TOTAL: $260.76
+
+CURRENCY: ARS
+
+NOTES:
+- Order can be returned within 30 days
+- Delivery estimated for 2024-01-25

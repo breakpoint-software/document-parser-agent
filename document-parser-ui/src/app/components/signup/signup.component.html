@@ -1,0 +1,110 @@
+<div class="signup-container">
+  <div class="signup-card">
+    <!-- Header -->
+    <div class="signup-header">
+      <h1>Document Parser</h1>
+      <p>Sign up or sign in to get started</p>
+    </div>
+
+    <!-- Loading State -->
+    <div *ngIf="isLoading" class="loading">
+      <div class="spinner"></div>
+      <p>Processing...</p>
+    </div>
+
+    <!-- Error Message -->
+    <div *ngIf="errorMessage" class="error-message">
+      <strong>Error:</strong> {{ errorMessage }}
+    </div>
+
+    <!-- Success Message -->
+    <div *ngIf="successMessage" class="success-message">
+      {{ successMessage }}
+    </div>
+
+    <!-- User Profile Display -->
+    <div *ngIf="currentUser && !showTenantForm" class="user-profile">
+      <div class="profile-header">
+        <img *ngIf="currentUser.photoURL" [src]="currentUser.photoURL" alt="Profile" class="profile-picture">
+        <div class="profile-info">
+          <h2>{{ currentUser.displayName || 'User' }}</h2>
+          <p>{{ currentUser.email }}</p>
+        </div>
+      </div>
+      <button (click)="logout()" class="btn btn-logout" [disabled]="isLoading">
+        Sign Out
+      </button>
+    </div>
+
+    <!-- Tenant Creation Form -->
+    <div *ngIf="currentUser && showTenantForm" class="tenant-form-container">
+      <div class="profile-header" style="margin-bottom: 20px;">
+        <img *ngIf="currentUser.photoURL" [src]="currentUser.photoURL" alt="Profile" class="profile-picture">
+        <div class="profile-info">
+          <h2>{{ currentUser.displayName || 'User' }}</h2>
+          <p>{{ currentUser.email }}</p>
+        </div>
+      </div>
+
+      <h3>Create Your Workspace</h3>
+      <p class="form-subtitle">Give your workspace a name to get started</p>
+
+      <div class="form-group">
+        <label for="tenantName">Workspace Name</label>
+        <input 
+          id="tenantName"
+          type="text" 
+          [(ngModel)]="tenantName"
+          placeholder="e.g., My Organization, Team Alpha"
+          class="form-input"
+          [disabled]="isLoading"
+        >
+      </div>
+
+      <button 
+        (click)="createTenantAndAccount()"
+        class="btn btn-primary"
+        [disabled]="isLoading || !isTenantNameValid"
+      >
+        <span *ngIf="!isLoading">Create Workspace</span>
+        <span *ngIf="isLoading">Creating...</span>
+      </button>
+
+      <button 
+        (click)="logout()"
+        class="btn btn-secondary"
+        [disabled]="isLoading"
+      >
+        Sign Out
+      </button>
+    </div>
+
+    <!-- Authentication Buttons -->
+    <div *ngIf="!currentUser" class="auth-buttons">
+      <button 
+        (click)="signupWithGoogle()" 
+        class="btn btn-google"
+        [disabled]="isLoading"
+      >
+        <span class="google-icon">🔐</span>
+        Sign Up with Google
+      </button>
+
+      <div class="divider">OR</div>
+
+      <button 
+        (click)="signinWithGoogle()" 
+        class="btn btn-google-signin"
+        [disabled]="isLoading"
+      >
+        <span class="google-icon">🔑</span>
+        Sign In with Google
+      </button>
+    </div>
+
+    <!-- Footer -->
+    <div class="signup-footer">
+      <p>Secure authentication powered by Google & Firebase</p>
+    </div>
+  </div>
+</div>

@@ -1,0 +1,60 @@
+%PDF-1.4
+1 0 obj
+<< /Type /Catalog /Pages 2 0 R >>
+endobj
+2 0 obj
+<< /Type /Pages /Kids [3 0 R] /Count 1 >>
+endobj
+3 0 obj
+<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Contents 4 0 R /Resources << /Font << /F1 5 0 R >> >> >>
+endobj
+4 0 obj
+<< /Length 500 >>
+stream
+BT
+/F1 12 Tf
+50 750 Td
+(INVOICE) Tj
+0 -20 Td
+(Invoice #: INV-2024-001) Tj
+0 -20 Td
+(Date: 2024-01-15) Tj
+0 -20 Td
+(Due Date: 2024-02-15) Tj
+0 -40 Td
+(Bill From:) Tj
+0 -20 Td
+(Acme Corp) Tj
+0 -20 Td
+(CUIT: 20-12345678-9) Tj
+0 -40 Td
+(Items:) Tj
+0 -20 Td
+(1. Professional Services: $1000.00) Tj
+0 -40 Td
+(Subtotal: $1000.00) Tj
+0 -20 Td
+(Taxes 21%: $210.00) Tj
+0 -20 Td
+(TOTAL: $1210.00) Tj
+0 -20 Td
+(Currency: ARS) Tj
+ET
+endstream
+endobj
+5 0 obj
+<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>
+endobj
+xref
+0 6
+0000000000 65535 f 
+0000000009 00000 n 
+0000000058 00000 n 
+0000000115 00000 n 
+0000000257 00000 n 
+0000000808 00000 n 
+trailer
+<< /Size 6 /Root 1 0 R >>
+startxref
+890
+%%EOF

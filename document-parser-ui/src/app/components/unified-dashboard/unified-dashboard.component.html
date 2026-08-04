@@ -1,0 +1,458 @@
+<div class="unified-container" [class.rules-page]="isRulesPage">
+  <!-- Loading State -->
+  <div *ngIf="isLoading" class="loading-overlay">
+    <div class="spinner"></div>
+    <p>Loading...</p>
+  </div>
+
+  <!-- Error Message -->
+  <div *ngIf="errorMessage" class="error-message">
+    <strong>Error:</strong> {{ errorMessage }}
+    <button (click)="errorMessage = ''" class="close-btn">×</button>
+  </div>
+
+  <!-- Success Message -->
+  <div *ngIf="successMessage" class="success-message">
+    {{ successMessage }}
+  </div>
+
+  <!-- Main Content Grid -->
+  <div class="content-grid" [class.rules-page-grid]="isRulesPage">
+    <!-- Left Panel: Tenant Dashboard Info -->
+    <div *ngIf="!isRulesPage" class="panel left-panel">
+      <div class="panel-header">
+        <h1>Document Parser</h1>
+        <p>Workspace Information</p>
+      </div>
+
+      <div *ngIf="tenant" class="tenant-info">
+        <div class="info-row">
+          <label>Workspace Name</label>
+          <div class="info-value">{{ tenant.name }}</div>
+        </div>
+
+        <div class="info-row">
+          <label>Workspace ID</label>
+          <div class="info-value-with-action">
+            <span class="id-value">{{ tenant.id }}</span>
+            <button (click)="copyTenantId()" class="btn btn-copy" title="Copy to clipboard">
+              📋 Copy
+            </button>
+          </div>
+        </div>
+
+        <div class="info-row">
+          <label>Status</label>
+          <div class="info-value">
+            <span class="status-badge" [class.active]="tenant.active">
+              {{ tenant.active ? 'Active' : 'Inactive' }}
+            </span>
+          </div>
+        </div>
+
+        <div class="info-row">
+          <label>Email</label>
+          <div class="info-value">{{ tenant.email || 'N/A' }}</div>
+        </div>
+
+        <div class="info-row">
+          <label>Created</label>
+          <div class="info-value">{{ tenant.created_at | date: 'medium' || 'N/A' }}</div>
+        </div>
+
+        <div class="info-row">
+          <label>Last Updated</label>
+          <div class="info-value">{{ tenant.updated_at | date: 'medium' || 'N/A' }}</div>
+        </div>
+
+        <!-- Actions -->
+        <div class="actions-section">
+          <button (click)="navigateToDriveExplorer()" class="btn btn-secondary">
+            📁 Drive Explorer
+          </button>
+          <button (click)="logout()" class="btn btn-logout">
+            🚪 Logout
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Right Panel: Rules Management -->
+    <div class="panel right-panel" [class.rules-manager-panel]="isRulesPage">
+      <div class="panel-header" [class.rules-manager-header]="isRulesPage">
+        <div>
+          <h1>{{ isRulesPage ? 'Rules Manager' : 'Rules Management' }}</h1>
+          <p>{{ isRulesPage ? 'Automate document parsing and spreadsheet updates for your tenant.' : 'Manage document parsing rules' }}</p>
+        </div>
+        <button
+          *ngIf="isRulesPage && !showAddForm && !editingRule"
+          (click)="showAddForm = true"
+          class="btn btn-primary create-rule-btn"
+          type="button"
+        >
+          + Create New Rule
+        </button>
+      </div>
+
+      <!-- Add Rule Button -->
+      <div *ngIf="!isRulesPage" class="action-bar">
+        <button 
+          *ngIf="!showAddForm && !editingRule"
+          (click)="showAddForm = true" 
+          class="btn btn-primary"
+        >
+          + Add New Rule
+        </button>
+      </div>
+
+      <div *ngIf="isRulesPage && !showAddForm && !editingRule" class="rules-toolbar">
+        <input
+          type="search"
+          [(ngModel)]="searchTerm"
+          class="rules-search"
+          placeholder="Search by rule name, folder, or sheet name..."
+          aria-label="Search rules"
+        >
+        <select [(ngModel)]="statusFilter" class="rules-select" aria-label="Filter by status">
+          <option value="all">All Statuses</option>
+          <option value="enabled">Enabled</option>
+          <option value="disabled">Disabled</option>
+        </select>
+        <select [(ngModel)]="sortOrder" class="rules-select sort-select" aria-label="Sort rules">
+          <option value="newest">Sort by: Newest</option>
+          <option value="oldest">Sort by: Oldest</option>
+          <option value="name">Sort by: Name</option>
+        </select>
+      </div>
+
+      <!-- Add Rule Form -->
+      <div *ngIf="showAddForm" class="add-rule-form">
+        <h2>Create New Rule</h2>
+
+        <div class="form-group">
+          <label for="ruleName">Rule Name *</label>
+          <input 
+            id="ruleName"
+            type="text" 
+            [(ngModel)]="newRule.rule_name"
+            placeholder="e.g., Invoice Processing"
+            class="form-input"
+          >
+        </div>
+
+        <!-- Source Folder Selection -->
+        <div class="form-group">
+          <label for="sourceFolder">Source Folder *</label>
+          <div class="folder-input-group">
+            <input 
+              id="sourceFolder"
+              type="text" 
+              [(ngModel)]="newRule.source_folder_name"
+              placeholder="Click button to select folder"
+              class="form-input"
+              readonly
+            >
+            <button 
+              (click)="openFolderPicker('source')"
+              [disabled]="!pickerReady"
+              class="btn btn-picker"
+              title="Select folder from Google Drive"
+            >
+              📂 Pick Folder
+            </button>
+          </div>
+          <small class="help-text" *ngIf="newRule.source_folder_id">
+            ID: {{ newRule.source_folder_id }}
+          </small>
+        </div>
+
+        <!-- Target Folder Selection -->
+        <div class="form-group">
+          <label for="targetFolder">Target Folder *</label>
+          <div class="folder-input-group">
+            <input 
+              id="targetFolder"
+              type="text" 
+              [(ngModel)]="newRule.target_folder_name"
+              placeholder="Click button to select folder"
+              class="form-input"
+              readonly
+            >
+            <button 
+              (click)="openFolderPicker('target')"
+              [disabled]="!pickerReady"
+              class="btn btn-picker"
+              title="Select folder from Google Drive"
+            >
+              📂 Pick Folder
+            </button>
+          </div>
+          <small class="help-text" *ngIf="newRule.target_folder_id">
+            ID: {{ newRule.target_folder_id }}
+          </small>
+        </div>
+
+        <div class="form-group">
+          <label for="targetSheet">Target Spreadsheet *</label>
+          <div class="folder-input-group">
+            <input
+              id="targetSheet"
+              type="text"
+              [value]="newRule.target_sheet_name || ''"
+              placeholder="Select a Google Sheet"
+              class="form-input"
+              readonly
+            >
+            <button
+              (click)="openSheetPicker('create')"
+              [disabled]="!pickerReady"
+              class="btn btn-picker"
+              title="Select a spreadsheet from Google Drive"
+              type="button"
+            >
+              Pick Sheet
+            </button>
+          </div>
+          <small class="help-text" *ngIf="newRule.target_sheet_id">
+            ID: {{ newRule.target_sheet_id }}
+          </small>
+        </div>
+
+        <div class="form-group">
+          <label for="tabName">Sheet Tab Name *</label>
+          <input 
+            id="tabName"
+            type="text" 
+            [(ngModel)]="newRule.sheet_tab_name"
+            placeholder="e.g., Invoices"
+            class="form-input"
+          >
+        </div>
+
+        <div class="form-group">
+          <label for="prompt">Parsing Prompt *</label>
+          <textarea 
+            id="prompt"
+            [(ngModel)]="newRule.parsing_prompt"
+            placeholder="Describe how to parse the document"
+            class="form-textarea"
+            rows="3"
+          ></textarea>
+        </div>
+
+        <div class="form-group checkbox">
+          <label>
+            <input 
+              type="checkbox" 
+              [(ngModel)]="newRule.is_enabled"
+            >
+            <span>Enable this rule</span>
+          </label>
+        </div>
+
+        <div class="form-actions">
+          <button 
+            (click)="addRule()" 
+            class="btn btn-primary"
+          >
+            Create Rule
+          </button>
+          <button 
+            (click)="cancelAddRule()" 
+            class="btn btn-secondary"
+          >
+            Cancel
+          </button>
+        </div>
+      </div>
+
+      <!-- Edit Rule Form -->
+      <section *ngIf="editingRule" class="add-rule-form edit-rule-form" aria-labelledby="edit-rule-heading">
+        <div class="edit-form-header">
+          <div>
+            <button (click)="cancelEditingRule()" class="btn-back-link" type="button">
+              ← Back to rules
+            </button>
+            <h2 id="edit-rule-heading">Edit Rule</h2>
+          </div>
+          <span class="rule-id">ID: {{ editingRule.rule_id }}</span>
+        </div>
+
+        <div class="form-group">
+          <label for="editRuleName">Rule Name *</label>
+          <input id="editRuleName" type="text" [(ngModel)]="editingRule.rule_name" class="form-input">
+        </div>
+
+        <div class="form-group">
+          <label for="editSourceFolder">Source Folder *</label>
+          <div class="folder-input-group">
+            <input id="editSourceFolder" type="text" [value]="editingRule.source_folder_name || editingRule.source_folder_id" class="form-input" readonly>
+            <button (click)="openFolderPicker('source', 'edit')" [disabled]="!pickerReady" class="btn btn-picker" type="button">Pick Folder</button>
+          </div>
+          <small class="help-text">ID: {{ editingRule.source_folder_id }}</small>
+        </div>
+
+        <div class="form-group">
+          <label for="editTargetFolder">Target Folder *</label>
+          <div class="folder-input-group">
+            <input id="editTargetFolder" type="text" [value]="editingRule.target_folder_name || editingRule.target_folder_id" class="form-input" readonly>
+            <button (click)="openFolderPicker('target', 'edit')" [disabled]="!pickerReady" class="btn btn-picker" type="button">Pick Folder</button>
+          </div>
+          <small class="help-text">ID: {{ editingRule.target_folder_id }}</small>
+        </div>
+
+        <div class="form-group">
+          <label for="editTargetSheet">Target Spreadsheet *</label>
+          <div class="folder-input-group">
+            <input id="editTargetSheet" type="text" [value]="editingRule.target_sheet_name || editingRule.target_sheet_id" class="form-input" readonly>
+            <button (click)="openSheetPicker('edit')" [disabled]="!pickerReady" class="btn btn-picker" type="button">Pick Sheet</button>
+          </div>
+        </div>
+
+        <div class="form-group">
+          <label for="editTabName">Sheet Tab Name *</label>
+          <input id="editTabName" type="text" [(ngModel)]="editingRule.sheet_tab_name" class="form-input">
+        </div>
+
+        <div class="form-group">
+          <label for="editPrompt">Parsing Prompt *</label>
+          <textarea id="editPrompt" [(ngModel)]="editingRule.parsing_prompt" class="form-textarea" rows="4"></textarea>
+        </div>
+
+        <div class="form-group checkbox">
+          <label>
+            <input type="checkbox" [(ngModel)]="editingRule.is_enabled">
+            <span>Enable this rule</span>
+          </label>
+        </div>
+
+        <div class="form-actions">
+          <button (click)="saveEditedRule()" class="btn btn-primary" type="button">Save Changes</button>
+          <button (click)="cancelEditingRule()" class="btn btn-secondary" type="button">Cancel</button>
+        </div>
+      </section>
+
+      <!-- Rules List -->
+      <div *ngIf="!editingRule" class="rules-list">
+        <div *ngIf="isRulesPage" class="rules-table-shell">
+          <table class="rules-table">
+            <thead>
+              <tr>
+                <th>Status</th>
+                <th>Rule Name</th>
+                <th>Pipeline (Source → Target)</th>
+                <th>Sheet Tab</th>
+                <th>Last Updated</th>
+                <th>Actions</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr *ngFor="let rule of filteredRules">
+                <td>
+                  <button
+                    (click)="toggleRuleEnabled(rule)"
+                    class="status-toggle"
+                    [class.enabled]="rule.is_enabled"
+                    [attr.aria-label]="(rule.is_enabled ? 'Disable ' : 'Enable ') + rule.rule_name"
+                    [attr.aria-pressed]="rule.is_enabled"
+                    type="button"
+                  ><span></span></button>
+                </td>
+                <td>
+                  <strong class="table-rule-name">{{ rule.rule_name }}</strong>
+                  <span class="table-rule-id">ID: {{ rule.rule_id }}</span>
+                </td>
+                <td class="pipeline-cell">
+                  <span>{{ rule.source_folder_name || rule.source_folder_id }}</span>
+                  <span class="pipeline-arrow">→</span>
+                  <span>{{ rule.target_folder_name || rule.target_folder_id }}</span>
+                </td>
+                <td>{{ rule.sheet_tab_name }}</td>
+                <td>{{ rule.updated_at | date: 'MMM d, y' }}</td>
+                <td class="table-actions">
+                  <button (click)="startEditingRule(rule)" class="table-edit-btn" type="button">Edit</button>
+                  <button
+                    (click)="deleteRule(rule.rule_id)"
+                    class="table-delete-btn"
+                    [disabled]="deletingRuleId === rule.rule_id"
+                    type="button"
+                  >
+                    {{ deletingRuleId === rule.rule_id ? 'Deleting...' : 'Delete' }}
+                  </button>
+                </td>
+              </tr>
+              <tr *ngIf="filteredRules.length === 0">
+                <td colspan="6" class="table-empty">No rules match your filters.</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+
+        <ng-container *ngIf="!isRulesPage">
+          <h2>Active Rules</h2>
+
+          <div *ngIf="rules.length === 0" class="empty-state">
+            <p>No rules created yet. Create one to get started!</p>
+          </div>
+
+          <div *ngFor="let rule of rules" class="rule-item">
+          <div class="rule-header">
+            <div class="rule-title">
+              <h3>{{ rule.rule_name }}</h3>
+              <span class="rule-status" [class.enabled]="rule.is_enabled">
+                {{ rule.is_enabled ? '✓ Enabled' : '✗ Disabled' }}
+              </span>
+            </div>
+            <div class="rule-actions">
+              <button
+                (click)="startEditingRule(rule)"
+                class="btn btn-edit"
+                type="button"
+              >
+                Edit
+              </button>
+              <button 
+                (click)="toggleRuleEnabled(rule)" 
+                class="btn btn-icon"
+                [title]="rule.is_enabled ? 'Disable' : 'Enable'"
+              >
+                {{ rule.is_enabled ? '✓' : '✗' }}
+              </button>
+              <button 
+                (click)="deleteRule(rule.rule_id)" 
+                class="btn btn-delete"
+                title="Delete"
+              >
+                🗑️
+              </button>
+            </div>
+          </div>
+
+          <div class="rule-details">
+            <div class="detail-row">
+              <span class="detail-label">Source Folder:</span>
+              <span class="detail-value">{{ rule.source_folder_name || rule.source_folder_id }}</span>
+            </div>
+            <div class="detail-row">
+              <span class="detail-label">Target Folder:</span>
+              <span class="detail-value">{{ rule.target_folder_name || rule.target_folder_id }}</span>
+            </div>
+            <div class="detail-row">
+              <span class="detail-label">Sheet:</span>
+              <span class="detail-value">{{ rule.target_sheet_id }}</span>
+            </div>
+            <div class="detail-row">
+              <span class="detail-label">Tab:</span>
+              <span class="detail-value">{{ rule.sheet_tab_name }}</span>
+            </div>
+            <div class="detail-row">
+              <span class="detail-label">Parsing Prompt:</span>
+              <span class="detail-value">{{ rule.parsing_prompt }}</span>
+            </div>
+          </div>
+          </div>
+        </ng-container>
+      </div>
+    </div>
+  </div>
+</div>

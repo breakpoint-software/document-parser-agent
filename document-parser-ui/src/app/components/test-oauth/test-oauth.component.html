@@ -1,0 +1,162 @@
+<div class="test-oauth-container">
+  <div class="test-section">
+    <h2>Google OAuth Integration Test</h2>
+    
+    <div class="status-bar">
+      <div class="status-item">
+        <span class="status-label">Authentication Status:</span>
+        <span [class]="'status-badge ' + (isAuthenticated ? 'authenticated' : 'unauthenticated')">
+          {{ isAuthenticated ? '✓ Authenticated' : '✗ Not Authenticated' }}
+        </span>
+      </div>
+      <div class="status-item">
+        <span class="status-label">Loading:</span>
+        <span [class]="'status-badge ' + (isLoading ? 'loading' : 'idle')">
+          {{ isLoading ? '⏳ Loading...' : '✓ Ready' }}
+        </span>
+      </div>
+    </div>
+
+    <div *ngIf="errorMessage" class="error-message">
+      ⚠️ {{ errorMessage }}
+    </div>
+
+    <!-- Test Buttons -->
+    <div class="test-buttons">
+      <button 
+        (click)="testTokenValidity()" 
+        [disabled]="!isAuthenticated || isLoading"
+        class="btn btn-info">
+        🔍 Test Token Validity
+      </button>
+      <button 
+        (click)="testWriteToSheet()" 
+        [disabled]="!isAuthenticated || isLoading"
+        class="btn btn-primary">
+        📝 Write to Sheet
+      </button>
+      <button 
+        (click)="testAppendToSheet()" 
+        [disabled]="!isAuthenticated || isLoading"
+        class="btn btn-primary">
+        ➕ Append to Sheet
+      </button>
+      <button 
+        (click)="testBatchUpdateSheet()" 
+        [disabled]="!isAuthenticated || isLoading"
+        class="btn btn-primary">
+        📋 Batch Update Sheet (VERIFIED)
+      </button>
+      <button 
+        (click)="testReadFromSheet()" 
+        [disabled]="!isAuthenticated || isLoading"
+        class="btn btn-secondary">
+        📖 Read from Sheet
+      </button>
+      <button 
+        (click)="testListFilesInFolder()" 
+        [disabled]="!isAuthenticated || isLoading"
+        class="btn btn-secondary">
+        📁 List Drive Files
+      </button>
+      <button 
+        (click)="clearTokenAndRelogin()" 
+        class="btn btn-warning">
+        🔄 Clear Token & Re-login
+      </button>
+      <button 
+        (click)="clearResults()" 
+        class="btn btn-danger">
+        🗑️ Clear Results
+      </button>
+    </div>
+
+    <!-- Test Configuration Display -->
+    <div class="config-info">
+      <h3>Test Configuration</h3>
+      <div class="config-item">
+        <span class="config-label">Spreadsheet ID:</span>
+        <code>{{ SPREADSHEET_ID }}</code>
+      </div>
+      <div class="config-item">
+        <span class="config-label">Sheet Name:</span>
+        <code>{{ SHEET_NAME }}</code>
+      </div>
+      <div class="config-item">
+        <span class="config-label">Folder ID:</span>
+        <code>{{ FOLDER_ID }}</code>
+      </div>
+    </div>
+  </div>
+
+  <!-- Test Results Section -->
+  <div class="results-section">
+    <h3>Test Results</h3>
+    
+    <div *ngIf="testResults.length === 0" class="no-results">
+      <p>No test results yet. Click a test button above to get started.</p>
+    </div>
+
+    <div *ngFor="let result of testResults" [class]="'result-item result-' + result.type">
+      <div class="result-header">
+        <span class="result-type">
+          <span *ngIf="result.type === 'success'" class="badge badge-success">✓ SUCCESS</span>
+          <span *ngIf="result.type === 'error'" class="badge badge-error">✗ ERROR</span>
+          <span *ngIf="result.type === 'info'" class="badge badge-info">ℹ INFO</span>
+        </span>
+        <span class="result-title">{{ result.title }}</span>
+        <span class="result-time">{{ result.timestamp | date: 'HH:mm:ss' }}</span>
+      </div>
+      <div class="result-message">{{ result.message }}</div>
+    </div>
+  </div>
+
+  <!-- Sheet Data Display -->
+  <div *ngIf="sheetData && sheetData.length > 0" class="data-section">
+    <h3>📊 Sheet Data</h3>
+    <div class="table-container">
+      <table class="data-table">
+        <thead>
+          <tr>
+            <th *ngFor="let header of sheetData[0]">{{ header }}</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr *ngFor="let row of sheetData.slice(1)">
+            <td *ngFor="let cell of row">{{ cell || '-' }}</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- Drive Files Display -->
+  <div *ngIf="driveFiles && driveFiles.length > 0" class="data-section">
+    <h3>📁 Files in Google Drive Folder</h3>
+    <p class="files-count">Total files: {{ driveFiles.length }}</p>
+    <div class="files-grid">
+      <div *ngFor="let file of driveFiles" class="file-card">
+        <div class="file-icon">
+          <span *ngIf="file.mimeType.includes('folder')">📁</span>
+          <span *ngIf="file.mimeType.includes('spreadsheet')">📊</span>
+          <span *ngIf="file.mimeType.includes('document')">📄</span>
+          <span *ngIf="!file.mimeType.includes('folder') && !file.mimeType.includes('spreadsheet') && !file.mimeType.includes('document')">📎</span>
+        </div>
+        <div class="file-details">
+          <div class="file-name">{{ file.name }}</div>
+          <div class="file-meta">
+            <span class="file-type">{{ file.mimeType }}</span>
+            <span class="file-size" *ngIf="file.size">{{ formatFileSize(file.size) }}</span>
+          </div>
+          <div class="file-timestamps">
+            <span *ngIf="file.createdTime" class="file-date">Created: {{ formatDate(file.createdTime) }}</span>
+            <span *ngIf="file.modifiedTime" class="file-date">Modified: {{ formatDate(file.modifiedTime) }}</span>
+          </div>
+          <a *ngIf="file.webViewLink" [href]="file.webViewLink" target="_blank" class="file-link">
+            Open in Drive →
+          </a>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>

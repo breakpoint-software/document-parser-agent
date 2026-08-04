@@ -1,0 +1,51 @@
+<div class="setup-guide">
+  <div class="setup-header">
+    <h2>⚙️ Setup Required</h2>
+    <p>Your Google OAuth credentials are not yet configured.</p>
+  </div>
+
+  <div class="setup-content">
+    <div class="step-box">
+      <div class="step-number">1</div>
+      <div class="step-details">
+        <h3>Get Google Credentials</h3>
+        <p>Visit <a href="https://console.cloud.google.com/" target="_blank">Google Cloud Console</a></p>
+        <ul>
+          <li>Create a new project</li>
+          <li>Enable Google Drive API & Google Picker API</li>
+          <li>Create OAuth 2.0 credentials (Web Application)</li>
+          <li>Set redirect URI: <code>{{ redirectUri }}</code></li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="step-box">
+      <div class="step-number">2</div>
+      <div class="step-details">
+        <h3>Update Configuration</h3>
+        <p>Edit <code>src/app/config/google.config.ts</code>:</p>
+        <pre><code>export const GOOGLE_CONFIG = {{
+  GOOGLE_CLIENT_ID: 'your-client-id.apps.googleusercontent.com',
+  GOOGLE_CLIENT_SECRET: 'your-client-secret',
+  GOOGLE_PICKER_API_KEY: 'your-api-key',
+  SERVICE_ACCOUNT_EMAIL: 'your-service-account@project.iam.gserviceaccount.com'
+}}</code></pre>
+      </div>
+    </div>
+
+    <div class="step-box">
+      <div class="step-number">3</div>
+      <div class="step-details">
+        <h3>Restart & Test</h3>
+        <p>After updating the config:</p>
+        <ul>
+          <li>Restart the development server (<code>npm start</code>)</li>
+          <li>Refresh this page in your browser</li>
+          <li>Click "Connect Google Account" to test</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+
+  
+</div>

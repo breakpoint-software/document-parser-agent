@@ -1,0 +1,40 @@
+version: '3.8'
+
+services:
+  orchestrator-api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: document-orchestrator-api
+    ports:
+      - "${API_PORT:-8000}:8000"
+    environment:
+      - PYTHONUNBUFFERED=1
+      - ORCHESTRATOR_API_HOST=0.0.0.0
+      - ORCHESTRATOR_API_PORT=8000
+      - ORCHESTRATOR_API_KEY=${ORCHESTRATOR_API_KEY}
+      - OPENAI_API_KEY=${OPENAI_API_KEY}
+      - OPENAI_MODEL=${OPENAI_MODEL:-gpt-4o}
+      - FIREBASE_SERVICE_ACCOUNT_JSON=${FIREBASE_SERVICE_ACCOUNT_JSON}
+      - GOOGLE_CLIENT_ID=${GOOGLE_CLIENT_ID}
+      - GOOGLE_CLIENT_SECRET=${GOOGLE_CLIENT_SECRET}
+      - GOOGLE_REFRESH_TOKEN=${GOOGLE_REFRESH_TOKEN:-}
+      - FIREBASE_TENANTS_COLLECTION=${FIREBASE_TENANTS_COLLECTION:-tenants}
+      - GOOGLE_DRIVE_FOLDER_IDS=${GOOGLE_DRIVE_FOLDER_IDS}
+      - GOOGLE_DRIVE_INVOICES_ROOT_FOLDER_ID=${GOOGLE_DRIVE_INVOICES_ROOT_FOLDER_ID}
+      - GOOGLE_SHEETS_SPREADSHEET_ID=${GOOGLE_SHEETS_SPREADSHEET_ID}
+      - GOOGLE_SHEETS_WORKSHEET=${GOOGLE_SHEETS_WORKSHEET:-Salidas}
+    volumes:
+      - ./:/app
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/api/status"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
