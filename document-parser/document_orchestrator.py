@@ -136,7 +136,13 @@ def _build_hyperlink_formula(url: str, label: str) -> str:
 	return f'=HYPERLINK("{safe_url}","{safe_label}")'
 
 
-def _parse_document(client: OpenAI, model: str, local_path: str, source_file: str) -> dict[str, Any]:
+def _parse_document(
+	client: OpenAI,
+	model: str,
+	local_path: str,
+	source_file: str,
+	extraction_instructions: str | None = None,
+) -> dict[str, Any]:
 	path = Path(local_path)
 	
 	# Debug: Check if file exists
@@ -153,17 +159,19 @@ def _parse_document(client: OpenAI, model: str, local_path: str, source_file: st
 		if file_type in {".jpg", ".jpeg", ".png"}:
 			# Send image in original format
 			logger.debug("Sending image in original format to OpenAI")
-			parsed = extract_receipt_json_from_image(client, model, path, to_data_uri(path))
+			parsed = extract_receipt_json_from_image(
+				client, model, path, to_data_uri(path), extraction_instructions
+			)
 		
 		elif file_type == ".pdf":
 			# Send PDF in original format
 			logger.debug("Sending PDF in original format to OpenAI")
-			parsed = extract_receipt_json_from_pdf(client, model, path)
+			parsed = extract_receipt_json_from_pdf(client, model, path, extraction_instructions)
 		
 		else:
 			# Send other document types (TXT, DOCX, etc) in original format
 			logger.debug("Sending %s in original format to OpenAI", file_type)
-			parsed = extract_receipt_json_from_document(client, model, path)
+			parsed = extract_receipt_json_from_document(client, model, path, extraction_instructions)
 		
 		parsed["source_file"] = source_file
 		return parsed
@@ -390,7 +398,13 @@ def orchestrate_single_rule(
 			continue
 		
 		try:
-			parsed = _parse_document(client, model, local_path, source_file)
+			parsed = _parse_document(
+				client,
+				model,
+				local_path,
+				source_file,
+				rule.parsing_prompt,
+			)
 			logger.info(
 				"Tenant=%s rule=%s parsed document_id=%s",
 				tenant_id,

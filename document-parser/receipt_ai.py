@@ -21,6 +21,12 @@ EXTRACTION_INSTRUCTIONS = (
 )
 
 
+def resolve_extraction_instructions(extraction_instructions: str | None) -> str:
+    if extraction_instructions and extraction_instructions.strip():
+        return extraction_instructions.strip()
+    return EXTRACTION_INSTRUCTIONS
+
+
 def build_user_prompt(file_name: str, source_type: str) -> str:
     return (
         f"File name: {file_name}\n\n"
@@ -45,13 +51,15 @@ def build_schema() -> dict[str, Any]:
                 "source_file": {"type": "string"},
                 "document_type": {"type": "string", "enum": ["purchase_receipt", "unknown"]},
                 "fecha": {"type": ["string", "null"], "description": "ISO 8601 date when possible."},
-                "fecha_vencimiento": {"type": ["string", "null"], "description": "ISO 8601 date when possible."},
+                "fecha_vencimiento": {"type": ["string", "null"], "description": "Tax ID of the company or individual issuing the invoice. Never the customer." },
                 "cuit_proveedor": {"type": ["string", "null"]},
-                "description_proveedor": {"type": ["string", "null"]},
+                "description_proveedor": {"type": ["string", "null"],     "description": "Legal name of the company or individual issuing the invoice. Never the customer." },
                 "moneda": {"type": ["string", "null"]},
                 "subtotal": {"type": ["number", "null"]},
                 "taxes": {"type": ["number", "null"]},
                 "total": {"type": ["number", "null"]},
+                "invoice_number": { "type": ["string", "null"], "description": "Invoice or receipt number exactly as printed." },
+                "invoice_letter": { "type": ["string", "null"], "enum": [ "A", "B", "C", "M", "E", None ], "description": "Argentine invoice letter." },
                 "confidence": {"type": ["number", "null"], "minimum": 0, "maximum": 1},
             },
             "required": [
@@ -65,6 +73,8 @@ def build_schema() -> dict[str, Any]:
                 "subtotal",
                 "taxes",
                 "total",
+                "invoice_number",
+                "invoice_letter",
                 "confidence",
             ],
         },
@@ -72,14 +82,20 @@ def build_schema() -> dict[str, Any]:
     }
 
 
-def extract_receipt_json(client: Any, model: str, file_path: Path, text: str) -> dict[str, Any]:
+def extract_receipt_json(
+    client: Any,
+    model: str,
+    file_path: Path,
+    text: str,
+    extraction_instructions: str | None = None,
+) -> dict[str, Any]:
     logger.debug("extract_receipt_json called: file=%s, model=%s, text_length=%s", file_path.name, model, len(text))
     
     try:
         logger.debug("Sending text extraction request to OpenAI for %s", file_path.name)
         response = client.responses.create(
             model=model,
-            instructions=EXTRACTION_INSTRUCTIONS,
+            instructions=resolve_extraction_instructions(extraction_instructions),
             input=f"{build_user_prompt(file_path.name, 'text')}\n\nDocument text:\n{text[:20000]}",
             text={
                 "format": {
@@ -119,7 +135,13 @@ def extract_receipt_json(client: Any, model: str, file_path: Path, text: str) ->
         raise
 
 
-def extract_receipt_json_from_image(client: Any, model: str, file_path: Path, image_data_uri: str) -> dict[str, Any]:
+def extract_receipt_json_from_image(
+    client: Any,
+    model: str,
+    file_path: Path,
+    image_data_uri: str,
+    extraction_instructions: str | None = None,
+) -> dict[str, Any]:
     logger.debug("extract_receipt_json_from_image called: file=%s, model=%s, image_size=%s bytes", 
                 file_path.name, model, len(image_data_uri))
     
@@ -127,7 +149,7 @@ def extract_receipt_json_from_image(client: Any, model: str, file_path: Path, im
         logger.debug("Sending image extraction request to OpenAI for %s", file_path.name)
         response = client.responses.create(
             model=model,
-            instructions=EXTRACTION_INSTRUCTIONS,
+            instructions=resolve_extraction_instructions(extraction_instructions),
             input=[
                 {
                     "role": "user",
@@ -182,7 +204,12 @@ def extract_receipt_json_from_image(client: Any, model: str, file_path: Path, im
         raise
 
 
-def extract_receipt_json_from_pdf(client: Any, model: str, file_path: Path) -> dict[str, Any]:
+def extract_receipt_json_from_pdf(
+    client: Any,
+    model: str,
+    file_path: Path,
+    extraction_instructions: str | None = None,
+) -> dict[str, Any]:
     """Upload PDF to OpenAI Files API and extract structured data."""
     logger.debug("extract_receipt_json_from_pdf called: file=%s, model=%s", file_path.name, model)
     
@@ -202,7 +229,7 @@ def extract_receipt_json_from_pdf(client: Any, model: str, file_path: Path) -> d
         logger.debug("Sending PDF to OpenAI via Files API for %s", file_path.name)
         response = client.responses.create(
             model=model,
-            instructions=EXTRACTION_INSTRUCTIONS,
+            instructions=resolve_extraction_instructions(extraction_instructions),
             input=[
                 {
                     "role": "user",
@@ -264,7 +291,12 @@ def extract_receipt_json_from_pdf(client: Any, model: str, file_path: Path) -> d
                 logger.warning("Failed to delete file %s: %s", file_id, e)
 
 
-def extract_receipt_json_from_document(client: Any, model: str, file_path: Path) -> dict[str, Any]:
+def extract_receipt_json_from_document(
+    client: Any,
+    model: str,
+    file_path: Path,
+    extraction_instructions: str | None = None,
+) -> dict[str, Any]:
     """Send document type to OpenAI by extracting text (DOCX, TXT, etc)."""
     logger.debug("extract_receipt_json_from_document called: file=%s, model=%s", file_path.name, model)
     
@@ -292,7 +324,7 @@ def extract_receipt_json_from_document(client: Any, model: str, file_path: Path)
         logger.debug("Sending extracted document text to OpenAI for %s", file_path.name)
         response = client.responses.create(
             model=model,
-            instructions=EXTRACTION_INSTRUCTIONS,
+            instructions=resolve_extraction_instructions(extraction_instructions),
             input=f"{build_user_prompt(file_path.name, 'document')}\n\nDocument text:\n{text[:20000]}",
             text={
                 "format": {
