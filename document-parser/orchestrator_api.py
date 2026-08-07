@@ -62,7 +62,6 @@ class RuleInfo(BaseModel):
 	target_sheet_id: str
 	sheet_tab_name: str
 	is_enabled: bool
-	parsing_prompt: str | None = None
 
 
 class StatusResponse(BaseModel):
@@ -173,7 +172,6 @@ async def health_check() -> StatusResponse:
 # 				target_sheet_id=r.target_sheet_id,
 # 				sheet_tab_name=r.sheet_tab_name,
 # 				is_enabled=r.is_enabled,
-# 				parsing_prompt=r.parsing_prompt,
 # 			)
 # 			for r in rules
 # 		]

@@ -13,7 +13,6 @@ interface Rule {
   target_folder_id: string;
   target_sheet_id: string;
   sheet_tab_name: string;
-  parsing_prompt: string;
   is_enabled: boolean;
   created_at?: Date;
   updated_at?: Date;
@@ -39,7 +38,6 @@ export class RulesManagementComponent implements OnInit, OnDestroy {
     target_folder_id: '',
     target_sheet_id: '',
     sheet_tab_name: '',
-    parsing_prompt: '',
     is_enabled: true
   };
 
@@ -93,7 +91,6 @@ export class RulesManagementComponent implements OnInit, OnDestroy {
       target_folder_id: this.newRule.target_folder_id || '',
       target_sheet_id: this.newRule.target_sheet_id || '',
       sheet_tab_name: this.newRule.sheet_tab_name || '',
-      parsing_prompt: this.newRule.parsing_prompt || '',
       is_enabled: this.newRule.is_enabled || true
     };
 
@@ -178,10 +175,6 @@ export class RulesManagementComponent implements OnInit, OnDestroy {
       this.errorMessage = 'Please enter sheet tab name';
       return false;
     }
-    if (!this.newRule.parsing_prompt?.trim()) {
-      this.errorMessage = 'Please enter parsing prompt';
-      return false;
-    }
     return true;
   }
 
@@ -195,7 +188,6 @@ export class RulesManagementComponent implements OnInit, OnDestroy {
       target_folder_id: '',
       target_sheet_id: '',
       sheet_tab_name: '',
-      parsing_prompt: '',
       is_enabled: true
     };
   }

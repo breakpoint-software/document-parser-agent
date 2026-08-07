@@ -52,7 +52,6 @@ export class UnifiedDashboardComponent implements OnInit, OnDestroy {
     target_sheet_id: '',
     target_sheet_name: '',
     sheet_tab_name: '',
-    parsing_prompt: '',
     is_enabled: true
   };
 
@@ -279,7 +278,6 @@ export class UnifiedDashboardComponent implements OnInit, OnDestroy {
       target_sheet_id: this.newRule.target_sheet_id || '',
       target_sheet_name: this.newRule.target_sheet_name || '',
       sheet_tab_name: this.newRule.sheet_tab_name || '',
-      parsing_prompt: this.newRule.parsing_prompt || '',
       is_enabled: this.newRule.is_enabled ?? true
     };
 
@@ -410,10 +408,6 @@ export class UnifiedDashboardComponent implements OnInit, OnDestroy {
       this.errorMessage = 'Please enter sheet tab name';
       return false;
     }
-    if (!rule.parsing_prompt?.trim()) {
-      this.errorMessage = 'Please enter parsing prompt';
-      return false;
-    }
     return true;
   }
 
@@ -430,7 +424,6 @@ export class UnifiedDashboardComponent implements OnInit, OnDestroy {
       target_sheet_id: '',
       target_sheet_name: '',
       sheet_tab_name: '',
-      parsing_prompt: '',
       is_enabled: true
     };
   }

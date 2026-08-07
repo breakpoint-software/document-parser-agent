@@ -97,17 +97,6 @@
         >
       </div>
 
-      <div class="form-group">
-        <label for="prompt">Parsing Prompt *</label>
-        <textarea 
-          id="prompt"
-          [(ngModel)]="newRule.parsing_prompt"
-          placeholder="Describe how to parse the document"
-          class="form-textarea"
-          rows="4"
-        ></textarea>
-      </div>
-
       <div class="form-group checkbox">
         <label>
           <input 
@@ -184,10 +173,6 @@
           <div class="detail-row">
             <span class="detail-label">Tab:</span>
             <span class="detail-value">{{ rule.sheet_tab_name }}</span>
-          </div>
-          <div class="detail-row">
-            <span class="detail-label">Parsing Prompt:</span>
-            <span class="detail-value">{{ rule.parsing_prompt }}</span>
           </div>
         </div>
       </div>

@@ -1,5 +1,5 @@
-const RULE_FIELDS = ['rule_name', 'source_folder_id', 'source_folder_name', 'target_folder_id', 'target_folder_name', 'target_sheet_id', 'target_sheet_name', 'sheet_tab_name', 'parsing_prompt', 'schema_id', 'is_enabled'];
-const REQUIRED_RULE_FIELDS = ['rule_name', 'source_folder_id', 'target_folder_id', 'target_sheet_id', 'sheet_tab_name', 'parsing_prompt'];
+const RULE_FIELDS = ['rule_name', 'source_folder_id', 'source_folder_name', 'target_folder_id', 'target_folder_name', 'target_sheet_id', 'target_sheet_name', 'sheet_tab_name', 'schema_id', 'is_enabled'];
+const REQUIRED_RULE_FIELDS = ['rule_name', 'source_folder_id', 'target_folder_id', 'target_sheet_id', 'sheet_tab_name'];
 
 function serializeValue(value) {
   return value && typeof value.toDate === 'function' ? value.toDate().toISOString() : value;

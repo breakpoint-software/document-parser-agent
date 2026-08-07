@@ -14,6 +14,90 @@ A multi-tenant invoice and receipt processor that scans Google Drive, extracts s
 
 Supported files: `.txt`, `.pdf`, `.docx`, `.jpg`, `.jpeg`, and `.png`.
 
+## Database model
+
+Firestore is schemaless, but the application writes the following logical model. `RULES` is a subcollection of `TENANTS`; `PROCESSED_FILES` is stored in a rule-scoped execution path.
+
+```mermaid
+erDiagram
+	TENANTS ||--o{ USER_ACCOUNTS : contains
+	TENANTS ||--o{ RULES : configures
+	EXTRACTION_SCHEMES ||--o{ RULES : selected_by
+	RULES ||--o{ PROCESSED_FILES : produces
+
+	TENANTS {
+		string tenant_id PK
+		string name
+		string email
+		boolean active
+		string refresh_token
+		string displayName
+		string photoURL
+		timestamp created_at
+		timestamp updated_at
+		timestamp last_sign_in
+	}
+
+	USER_ACCOUNTS {
+		string id PK
+		string uid
+		string tenant_id FK
+		string email
+		string displayName
+		string photoURL
+		number balance
+		timestamp updated_at
+	}
+
+	RULES {
+		string rule_id PK
+		string tenant_id FK
+		string rule_name
+		string source_folder_id
+		string source_folder_name
+		string target_folder_id
+		string target_folder_name
+		string target_sheet_id
+		string target_sheet_name
+		string sheet_tab_name
+		string schema_id FK
+		boolean is_enabled
+		timestamp created_at
+		timestamp updated_at
+	}
+
+	EXTRACTION_SCHEMES {
+		string schema_id PK
+		string name
+		number version
+		boolean is_enabled
+		boolean strict
+		string parsing_prompt
+		map schema
+		map identity
+	}
+
+	PROCESSED_FILES {
+		string document_id PK
+		string tenant_id FK
+		string rule_id FK
+		string drive_file_id
+		string source_file_name
+		string schema_id FK
+		string status
+		timestamp executed_at
+		map parsed_data
+	}
+```
+
+Collection paths:
+
+- `tenants/{tenant_id}`
+- `tenants/{tenant_id}/rules/{rule_id}`
+- `user-accounts/{account_id}`
+- `extraction_schemes/{schema_id}`
+- `{tenant_id}/{rule_id}/processed_files/{document_id}`
+
 ## Prerequisites
 
 Choose either:
@@ -106,15 +190,14 @@ Each processing rule is stored at `tenants/{tenant_id}/rules/{rule_id}`:
 	"target_folder_id": "google-drive-target-folder-id",
 	"target_sheet_id": "google-spreadsheet-id",
 	"sheet_tab_name": "Salidas",
-	"parsing_prompt": null,
 	"schema_id": "arg-invoices",
 	"is_enabled": true
 }
 ```
 
-Extraction schemas are shared globally and stored at `extraction_schemes/{schema_id}`. The `schema_id` on each rule selects the global schema used for that rule. Existing rules without this field use `arg-invoices`.
+Extraction schemes are shared globally and stored at `extraction_schemes/{schema_id}`. Each scheme owns its `parsing_prompt`, response `schema`, and document `identity` configuration. The `schema_id` on each rule selects the complete scheme used for that rule. Existing rules without this field use `arg-invoices`.
 
-Each extraction scheme also defines ordered identity strategies. The first strategy with all required extracted fields produces the canonical document ID. In the execution database, canonical identities are rule-scoped at `{tenant_id}/{rule_id}/processed_documents/{identity_key}`, and Drive source state is stored at `{tenant_id}/{rule_id}/source_documents/{drive_document_id}`. A second source with an existing identity in the same rule is treated as redundant and is not moved or written to Sheets.
+Each extraction scheme also defines ordered identity strategies. The first strategy with all required extracted fields produces the canonical document ID. Processing records are rule-scoped at `{tenant_id}/{rule_id}/processed_files/{document_id}`. Canonical records use the generated identity key as `document_id`; duplicate records use a `duplicated-` prefix. A second source with an existing identity in the same rule is treated as redundant and is not moved or written to Sheets.
 
 After changing a scheme JSON file, increment its `version` and upload it to Firestore. The version change causes unchanged Drive sources to be re-extracted:
 

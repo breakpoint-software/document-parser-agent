@@ -32,7 +32,6 @@ class RuleObject:
     target_folder_id: str
     target_sheet_id: str
     sheet_tab_name: str
-    parsing_prompt: str | None = None
     schema_id: str = "arg-invoices"
     is_enabled: bool = True
 
@@ -44,7 +43,6 @@ class RuleObject:
             "target_folder_id": self.target_folder_id,
             "target_sheet_id": self.target_sheet_id,
             "sheet_tab_name": self.sheet_tab_name,
-            "parsing_prompt": self.parsing_prompt,
             "schema_id": self.schema_id,
             "is_enabled": self.is_enabled,
         }
@@ -58,7 +56,6 @@ class RuleObject:
             target_folder_id=data.get("target_folder_id", ""),
             target_sheet_id=data.get("target_sheet_id", ""),
             sheet_tab_name=data.get("sheet_tab_name", ""),
-            parsing_prompt=data.get("parsing_prompt"),
             schema_id=data.get("schema_id", "arg-invoices"),
             is_enabled=data.get("is_enabled", True),
         )
@@ -180,6 +177,10 @@ class FirebaseTenantConfigManager:
         if not isinstance(name, str) or not name.strip():
             raise FirebaseConfigError(f"Extraction schema '{collection_name}/{schema_id}' has no valid name.")
 
+        parsing_prompt = data.get("parsing_prompt")
+        if not isinstance(parsing_prompt, str) or not parsing_prompt.strip():
+            raise FirebaseConfigError(f"Extraction schema '{collection_name}/{schema_id}' has no parsing prompt.")
+
         identity = data.get("identity")
         if not isinstance(identity, dict):
             raise FirebaseConfigError(f"Extraction schema '{collection_name}/{schema_id}' has no identity configuration.")
@@ -193,6 +194,7 @@ class FirebaseTenantConfigManager:
         return {
             "name": name.strip(),
             "version": int(data.get("version", 1)),
+            "parsing_prompt": parsing_prompt.strip(),
             "schema": schema,
             "strict": data.get("strict", True),
             "identity": identity,

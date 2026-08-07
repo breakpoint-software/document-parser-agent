@@ -11,9 +11,6 @@ from typing import Any
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from document_orchestrator import _parse_document
-from receipt_ai import EXTRACTION_INSTRUCTIONS, load_extraction_response_format
-
-
 TEST_RESPONSE_FORMAT = {
     "name": "test_extraction",
     "schema": {
@@ -23,6 +20,13 @@ TEST_RESPONSE_FORMAT = {
         "required": ["test_field"],
     },
     "strict": True,
+}
+
+TEST_SCHEME = {
+    **TEST_RESPONSE_FORMAT,
+    "version": 1,
+    "parsing_prompt": "Scheme parsing prompt",
+    "identity": {},
 }
 
 
@@ -40,30 +44,17 @@ class FakeClient:
         self.responses = FakeResponses()
 
 
-def test_parse_document_uses_rule_prompt(monkeypatch: Any) -> None:
+def test_parse_document_uses_scheme_prompt(monkeypatch: Any) -> None:
     client = FakeClient()
-    monkeypatch.setattr("receipt_ai.load_extraction_response_format", lambda schema_id: TEST_RESPONSE_FORMAT)
+    monkeypatch.setattr("receipt_ai.load_extraction_scheme", lambda schema_id: TEST_SCHEME)
 
     with TemporaryDirectory() as temp_dir:
         document = Path(temp_dir) / "receipt.txt"
         document.write_text("sample receipt", encoding="utf-8")
-        _parse_document(client, "test-model", str(document), document.name, "  Custom rule prompt  ")
+        _parse_document(client, "test-model", str(document), document.name)
 
     assert client.responses.request is not None
-    assert client.responses.request["instructions"] == "Custom rule prompt"
-
-
-def test_parse_document_uses_default_for_blank_rule_prompt(monkeypatch: Any) -> None:
-    client = FakeClient()
-    monkeypatch.setattr("receipt_ai.load_extraction_response_format", lambda schema_id: TEST_RESPONSE_FORMAT)
-
-    with TemporaryDirectory() as temp_dir:
-        document = Path(temp_dir) / "receipt.txt"
-        document.write_text("sample receipt", encoding="utf-8")
-        _parse_document(client, "test-model", str(document), document.name, "   ")
-
-    assert client.responses.request is not None
-    assert client.responses.request["instructions"] == EXTRACTION_INSTRUCTIONS
+    assert client.responses.request["instructions"] == "Scheme parsing prompt"
 
 
 def test_parse_document_uses_rule_schema_reference(monkeypatch: Any) -> None:
@@ -72,9 +63,9 @@ def test_parse_document_uses_rule_schema_reference(monkeypatch: Any) -> None:
 
     def load_schema(schema_id: str) -> dict[str, Any]:
         selected_schema_ids.append(schema_id)
-        return TEST_RESPONSE_FORMAT
+        return TEST_SCHEME
 
-    monkeypatch.setattr("receipt_ai.load_extraction_response_format", load_schema)
+    monkeypatch.setattr("receipt_ai.load_extraction_scheme", load_schema)
 
     with TemporaryDirectory() as temp_dir:
         document = Path(temp_dir) / "receipt.txt"

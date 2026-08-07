@@ -142,7 +142,6 @@ def _parse_document(
 	model: str,
 	local_path: str,
 	source_file: str,
-	extraction_instructions: str | None = None,
 	schema_id: str = "arg-invoices",
 ) -> dict[str, Any]:
 	path = Path(local_path)
@@ -161,19 +160,17 @@ def _parse_document(
 		if file_type in {".jpg", ".jpeg", ".png"}:
 			# Send image in original format
 			logger.debug("Sending image in original format to OpenAI")
-			parsed = extract_receipt_json_from_image(
-				client, model, path, to_data_uri(path), extraction_instructions, schema_id
-			)
+			parsed = extract_receipt_json_from_image(client, model, path, to_data_uri(path), schema_id)
 		
 		elif file_type == ".pdf":
 			# Send PDF in original format
 			logger.debug("Sending PDF in original format to OpenAI")
-			parsed = extract_receipt_json_from_pdf(client, model, path, extraction_instructions, schema_id)
+			parsed = extract_receipt_json_from_pdf(client, model, path, schema_id)
 		
 		else:
 			# Send other document types (TXT, DOCX, etc) in original format
 			logger.debug("Sending %s in original format to OpenAI", file_type)
-			parsed = extract_receipt_json_from_document(client, model, path, extraction_instructions, schema_id)
+			parsed = extract_receipt_json_from_document(client, model, path, schema_id)
 		
 		parsed["source_file"] = source_file
 		return parsed
@@ -231,7 +228,6 @@ def _create_default_tenant_from_env() -> tuple[TenantConfig, RuleObject] | None:
 		target_folder_id=target_folder_id,
 		target_sheet_id=target_sheet_id,
 		sheet_tab_name=sheet_tab_name,
-		parsing_prompt=None,
 		is_enabled=True,
 	)
 	
@@ -405,7 +401,6 @@ def orchestrate_single_rule(
 				model,
 				local_path,
 				source_file,
-				rule.parsing_prompt,
 				rule.schema_id,
 			)
 			logger.info(

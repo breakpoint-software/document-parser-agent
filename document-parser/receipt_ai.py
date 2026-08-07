@@ -14,31 +14,19 @@ from firebase_tenant_config import FirebaseTenantConfigManager
 logger = logging.getLogger(__name__)
 
 
-EXTRACTION_INSTRUCTIONS = (
-    "You extract purchase receipt information from a single document. "
-    "Return one JSON object that matches the schema exactly. "
-    "Use null for missing values, empty arrays for missing line items, and numbers for amounts. "
-    "Prefer the receipt's own values over guesses. "
-    "If the document is not a purchase receipt, set document_type to unknown but still capture any purchase-related hints you can find. "
-    "Do not add markdown, prose, or extra keys."
-)
-
-
-def resolve_extraction_instructions(extraction_instructions: str | None) -> str:
-    if extraction_instructions and extraction_instructions.strip():
-        return extraction_instructions.strip()
-    return EXTRACTION_INSTRUCTIONS
-
-
 @lru_cache(maxsize=32)
-def load_extraction_response_format(schema_id: str) -> dict[str, Any]:
+def load_extraction_scheme(schema_id: str) -> dict[str, Any]:
     collection_name = os.getenv("FIREBASE_EXTRACTION_SCHEMES_COLLECTION", "extraction_schemes").strip()
     schema_id = schema_id.strip()
     if not collection_name or not schema_id:
         raise RuntimeError("Firebase extraction schema collection and document ID must not be blank.")
 
     manager = FirebaseTenantConfigManager()
-    return manager.get_extraction_schema(schema_id, collection_name)
+    return manager.get_extraction_scheme(schema_id, collection_name)
+
+
+def get_response_format(extraction_scheme: dict[str, Any]) -> dict[str, Any]:
+    return {key: extraction_scheme[key] for key in ("name", "schema", "strict")}
 
 
 def build_user_prompt(
@@ -103,17 +91,17 @@ def extract_receipt_json(
     model: str,
     file_path: Path,
     text: str,
-    extraction_instructions: str | None = None,
     schema_id: str = "arg-invoices",
 ) -> dict[str, Any]:
     logger.debug("extract_receipt_json called: file=%s, model=%s, text_length=%s", file_path.name, model, len(text))
-    response_format = load_extraction_response_format(schema_id)
+    extraction_scheme = load_extraction_scheme(schema_id)
+    response_format = get_response_format(extraction_scheme)
     
     try:
         logger.debug("Sending text extraction request to OpenAI for %s", file_path.name)
         response = client.responses.create(
             model=model,
-            instructions=resolve_extraction_instructions(extraction_instructions),
+            instructions=extraction_scheme["parsing_prompt"],
             input=f"{build_user_prompt(file_path.name, 'text', response_format)}\n\nDocument text:\n{text[:20000]}",
             text={"format": {"type": "json_schema", **response_format}},
         )
@@ -151,18 +139,18 @@ def extract_receipt_json_from_image(
     model: str,
     file_path: Path,
     image_data_uri: str,
-    extraction_instructions: str | None = None,
     schema_id: str = "arg-invoices",
 ) -> dict[str, Any]:
     logger.debug("extract_receipt_json_from_image called: file=%s, model=%s, image_size=%s bytes", 
                 file_path.name, model, len(image_data_uri))
-    response_format = load_extraction_response_format(schema_id)
+    extraction_scheme = load_extraction_scheme(schema_id)
+    response_format = get_response_format(extraction_scheme)
     
     try:
         logger.debug("Sending image extraction request to OpenAI for %s", file_path.name)
         response = client.responses.create(
             model=model,
-            instructions=resolve_extraction_instructions(extraction_instructions),
+            instructions=extraction_scheme["parsing_prompt"],
             input=[
                 {
                     "role": "user",
@@ -214,12 +202,12 @@ def extract_receipt_json_from_pdf(
     client: Any,
     model: str,
     file_path: Path,
-    extraction_instructions: str | None = None,
     schema_id: str = "arg-invoices",
 ) -> dict[str, Any]:
     """Upload PDF to OpenAI Files API and extract structured data."""
     logger.debug("extract_receipt_json_from_pdf called: file=%s, model=%s", file_path.name, model)
-    response_format = load_extraction_response_format(schema_id)
+    extraction_scheme = load_extraction_scheme(schema_id)
+    response_format = get_response_format(extraction_scheme)
     
     file_id = None
     try:
@@ -237,7 +225,7 @@ def extract_receipt_json_from_pdf(
         logger.debug("Sending PDF to OpenAI via Files API for %s", file_path.name)
         response = client.responses.create(
             model=model,
-            instructions=resolve_extraction_instructions(extraction_instructions),
+            instructions=extraction_scheme["parsing_prompt"],
             input=[
                 {
                     "role": "user",
@@ -296,12 +284,12 @@ def extract_receipt_json_from_document(
     client: Any,
     model: str,
     file_path: Path,
-    extraction_instructions: str | None = None,
     schema_id: str = "arg-invoices",
 ) -> dict[str, Any]:
     """Send document type to OpenAI by extracting text (DOCX, TXT, etc)."""
     logger.debug("extract_receipt_json_from_document called: file=%s, model=%s", file_path.name, model)
-    response_format = load_extraction_response_format(schema_id)
+    extraction_scheme = load_extraction_scheme(schema_id)
+    response_format = get_response_format(extraction_scheme)
     
     try:
         logger.debug("Extracting text from document: %s", file_path.name)
@@ -327,7 +315,7 @@ def extract_receipt_json_from_document(
         logger.debug("Sending extracted document text to OpenAI for %s", file_path.name)
         response = client.responses.create(
             model=model,
-            instructions=resolve_extraction_instructions(extraction_instructions),
+            instructions=extraction_scheme["parsing_prompt"],
             input=f"{build_user_prompt(file_path.name, 'document', response_format)}\n\nDocument text:\n{text[:20000]}",
             text={"format": {"type": "json_schema", **response_format}},
         )
