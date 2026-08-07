@@ -27,35 +27,35 @@ from receipt_ai import extract_receipt_json, extract_receipt_json_from_image
 EXPECTED_VALUES = {
     "sample_invoice.pdf": {
         "document_type": "purchase_receipt",
-        "description_proveedor": "Acme Corp",
-        "cuit_proveedor": "20-12345678-9",
+        "supplier_name": "Acme Corp",
+        "supplier_tax_id": "20-12345678-9",
         "total": 1210.0,
-        "moneda": "ARS",
-        "fecha": "2024-01-15",
+        "currency": "ARS",
+        "invoice_date": "2024-01-15",
     },
     "sample_invoice_scan.jpg": {
         "document_type": "purchase_receipt",
-        "description_proveedor": "Local Store",
-        "cuit_proveedor": "20-11111111-1",
+        "supplier_name": "Local Store",
+        "supplier_tax_id": "20-11111111-1",
         "total": 303.1,
-        "moneda": "ARS",
-        "fecha": "2024-01-25",
+        "currency": "ARS",
+        "invoice_date": "2024-01-25",
     },
     "sample_receipt.png": {
         "document_type": "purchase_receipt",
-        "description_proveedor": "Tech Solutions Ltd",
-        "cuit_proveedor": "20-87654321-0",
+        "supplier_name": "Tech Solutions Ltd",
+        "supplier_tax_id": "20-87654321-0",
         "total": 550.0,
-        "moneda": "USD",
-        "fecha": "2024-01-20",
+        "currency": "USD",
+        "invoice_date": "2024-01-20",
     },
     "sample_receipt.txt": {
         "document_type": "purchase_receipt",
-        "description_proveedor": "Online Retailer",
-        "cuit_proveedor": "20-99999999-9",
+        "supplier_name": "Online Retailer",
+        "supplier_tax_id": "20-99999999-9",
         "total": 260.76,
-        "moneda": "ARS",
-        "fecha": "2024-01-18",
+        "currency": "ARS",
+        "invoice_date": "2024-01-18",
     },
 }
 
@@ -109,8 +109,8 @@ def test_pdf():
         
         if is_valid:
             print(f"  ✓ Extracted correctly")
-            print(f"    - Vendor: {result.get('description_proveedor')}")
-            print(f"    - Total: {result.get('total')} {result.get('moneda')}")
+            print(f"    - Vendor: {result.get('supplier_name')}")
+            print(f"    - Total: {result.get('total')} {result.get('currency')}")
             return True
         else:
             print(f"  ✗ Validation failed:")
@@ -143,8 +143,8 @@ def test_jpg_image():
         
         if is_valid:
             print(f"  ✓ Extracted correctly")
-            print(f"    - Vendor: {result.get('description_proveedor')}")
-            print(f"    - Total: {result.get('total')} {result.get('moneda')}")
+            print(f"    - Vendor: {result.get('supplier_name')}")
+            print(f"    - Total: {result.get('total')} {result.get('currency')}")
             return True
         else:
             print(f"  ✗ Validation failed:")
@@ -177,8 +177,8 @@ def test_png_image():
         
         if is_valid:
             print(f"  ✓ Extracted correctly")
-            print(f"    - Vendor: {result.get('description_proveedor')}")
-            print(f"    - Total: {result.get('total')} {result.get('moneda')}")
+            print(f"    - Vendor: {result.get('supplier_name')}")
+            print(f"    - Total: {result.get('total')} {result.get('currency')}")
             return True
         else:
             print(f"  ✗ Validation failed:")
@@ -211,8 +211,8 @@ def test_text_file():
         
         if is_valid:
             print(f"  ✓ Extracted correctly")
-            print(f"    - Vendor: {result.get('description_proveedor')}")
-            print(f"    - Total: {result.get('total')} {result.get('moneda')}")
+            print(f"    - Vendor: {result.get('supplier_name')}")
+            print(f"    - Total: {result.get('total')} {result.get('currency')}")
             return True
         else:
             print(f"  ✗ Validation failed:")

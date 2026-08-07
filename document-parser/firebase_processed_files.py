@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import hashlib
 import json
 import os
 from datetime import datetime, timezone
@@ -31,8 +30,8 @@ class FirebaseProcessedFilesTracker:
         if not self.rule_id:
             raise FirebaseConfigError("rule_id is required")
         
-        # Multi-tenant rule-based tracking: tenants/{tenant_id}/rules_executions/{rule_id}/processed_documents/{file_hash}
-        self.collection_name = f"{self.tenant_id}/{self.rule_id}_executions/processed_documents"
+        execution_path = f"{self.tenant_id}/{self.rule_id}"
+        self.collection_name = f"{execution_path}/processed_files"
         self._db = None
 
     def _build_credentials(self):
@@ -69,71 +68,117 @@ class FirebaseProcessedFilesTracker:
         self._db = firestore.client()
         return self._db
 
-    def compute_file_hash(self, file_path: Path) -> str:
-        sha256 = hashlib.sha256()
-        with file_path.open("rb") as stream:
-            for chunk in iter(lambda: stream.read(1024 * 1024), b""):
-                sha256.update(chunk)
-        return sha256.hexdigest()
-
-    def is_processed(self, file_hash: str) -> bool:
-        doc = self._get_db().collection(self.collection_name).document(file_hash).get()
-        return bool(doc.exists)
-
-    def mark_processed(self, file_hash: str, source_file: str) -> None:
-        payload = {
-            "file_hash": file_hash,
-            "source_file": source_file,
-            "processed_at": datetime.now(timezone.utc).isoformat(),
-        }
-        self._get_db().collection(self.collection_name).document(file_hash).set(payload)
-
-    def get_document_record(self, document_id: str) -> dict[str, Any] | None:
-        doc = self._get_db().collection(self.collection_name).document(document_id).get()
+    def get_document_record(self, identity_key: str) -> dict[str, Any] | None:
+        doc = self._get_db().collection(self.collection_name).document(identity_key).get()
         if not doc.exists:
             return None
         return doc.to_dict() or {}
 
-    def save_document_record(
-        self,
-        file_hash: str,
-        document_id: str,
-        source_file: str,
-        modification_date: str | None,
+    def get_source_record(self, source_document_id: str) -> dict[str, Any] | None:
+        collection = self._get_db().collection(self.collection_name)
+        try:
+            documents = list(collection.where("drive_file_id", "==", source_document_id).limit(1).stream())
+        except Exception:
+            documents = collection.stream()
+
+        for doc in documents:
+            payload = doc.to_dict() or {}
+            if payload.get("drive_file_id") == source_document_id:
+                return payload
+        return None
+
+    @staticmethod
+    def _build_record(
+        record_id: str,
         status: str,
-        parsed_data: dict[str, Any] | None = None,
-    ) -> None:
-        now = datetime.now(timezone.utc).isoformat()
-        payload: dict[str, Any] = {
-            "file_hash": file_hash,
-            "document_id": document_id,
-            "source_file": source_file,
-            "modificationDate": modification_date,
+        schema_id: str,
+        source_file: str,
+        drive_file_id: str,
+        parsed_data: dict[str, Any],
+    ) -> dict[str, Any]:
+        return {
+            "document_id": record_id,
+            "executed_at": datetime.now(timezone.utc).isoformat(),
             "status": status,
-            "updated_at": now,
+            "schema_id": schema_id,
+            "source_file_name": source_file,
+            "drive_file_id": drive_file_id,
+            "parsed_data": parsed_data,
         }
 
-        if parsed_data is not None:
-            payload["parsed_data"] = parsed_data
+    def claim_document_identity(
+        self,
+        identity: dict[str, Any],
+        source_document_id: str,
+        source_file: str,
+        schema_id: str,
+        parsed_data: dict[str, Any],
+    ) -> str | None:
+        from google.api_core.exceptions import AlreadyExists
 
-        existing = self.get_document_record(file_hash)
-        if existing is None:
-            payload["created_at"] = now
+        identity_key = identity["identity_key"]
+        collection = self._get_db().collection(self.collection_name)
+        payload = self._build_record(
+            identity_key,
+            "Parsed",
+            schema_id,
+            source_file,
+            source_document_id,
+            parsed_data,
+        )
+        try:
+            collection.document(identity_key).create(payload)
+            return "created"
+        except AlreadyExists:
+            existing = self.get_document_record(identity_key) or {}
+            if existing.get("drive_file_id") == source_document_id:
+                return "existing_source"
 
-        # Use file_hash as the document ID in Firebase
-        self._get_db().collection(self.collection_name).document(file_hash).set(payload, merge=True)
-        
-        # Also mark the file as processed in the documents collection
-        self.mark_processed(file_hash, source_file)
+            duplicate_id = f"duplicated-{identity_key}"
+            collection.document(duplicate_id).set(
+                self._build_record(
+                    duplicate_id,
+                    "Duplicated",
+                    schema_id,
+                    source_file,
+                    source_document_id,
+                    parsed_data,
+                )
+            )
+            return None
 
-    def mark_document_sent(self, document_id: str) -> None:
+    def release_document_identity(self, identity_key: str, source_document_id: str) -> None:
+        document = self._get_db().collection(self.collection_name).document(identity_key)
+        existing = document.get()
+        if existing.exists and (existing.to_dict() or {}).get("drive_file_id") == source_document_id:
+            document.delete()
+
+    def save_document_record(
+        self,
+        identity_key: str,
+        drive_file_id: str,
+        source_file: str,
+        status: str,
+        schema_id: str,
+        parsed_data: dict[str, Any],
+    ) -> None:
+        payload = self._build_record(
+            identity_key,
+            status,
+            schema_id,
+            source_file,
+            drive_file_id,
+            parsed_data,
+        )
+        self._get_db().collection(self.collection_name).document(identity_key).set(payload)
+
+    def mark_document_sent(self, identity_key: str) -> None:
         now = datetime.now(timezone.utc).isoformat()
         payload = {
             "status": "Sent",
-            "sent_at": now,
-            "updated_at": now,
+            "executed_at": now,
         }
-        self._get_db().collection(self.collection_name).document(document_id).set(payload, merge=True)
+        self._get_db().collection(self.collection_name).document(identity_key).set(payload, merge=True)
 
     def list_documents_by_statuses(self, statuses: list[str]) -> list[dict[str, Any]]:
         unique_statuses = [status for status in dict.fromkeys(statuses) if str(status).strip()]
@@ -173,44 +218,19 @@ def build_firebase_tracker(
     return FirebaseProcessedFilesTracker(tenant_id=tenant_id, rule_id=rule_id)
 
 
-def check_files_already_processed(
-    tracker: FirebaseProcessedFilesTracker | None, file_paths: list[str]
-) -> tuple[list[str], list[tuple[str, str]], str | None]:
-    if tracker is None:
-        return file_paths, [], None
-
-    new_files: list[str] = []
-    skipped_files: list[tuple[str, str]] = []
-
-    try:
-        for file_path in file_paths:
-            path = Path(file_path)
-            file_hash = tracker.compute_file_hash(path)
-            if tracker.is_processed(file_hash):
-                skipped_files.append((path.name, file_hash))
-            else:
-                new_files.append(file_path)
-    except Exception as exc:
-        return file_paths, [], f"Firebase tracking unavailable. Processing all files. Details: {exc}"
-
-    return new_files, skipped_files, None
-
-
 def check_drive_documents_to_process(
     tracker: FirebaseProcessedFilesTracker | None,
     documents: list[dict[str, Any]],
+    schema_id: str,
+    schema_version: int,
 ) -> tuple[list[dict[str, Any]], list[dict[str, Any]], str | None]:
     """
     Returns (documents_to_process, skipped_documents, warning).
 
-    Process:
-    1. Compute file hash from file content
-    2. Use hash as unique document identifier
-    3. Check if document (by hash) already exists
-    4. Compare modification dates for changes
+    Records are looked up by Drive document ID to avoid re-extracting an
+    unchanged source. Canonical business identity is checked after extraction.
 
-    - File already processed (by hash) -> skipped
-    - New document (no hash record) -> status "Parsed"
+    - New source document -> status "Parsed"
     - Existing document with modified date changed -> status "Modified"
     - Existing document with same modified date -> skipped
     """
@@ -224,50 +244,39 @@ def check_drive_documents_to_process(
     try:
         for document in documents:
             document_id = str(document.get("document_id") or "").strip()
-            modified_time = str(document.get("modificationDate") or "").strip() or None
             local_path = str(document.get("local_path") or "").strip()
 
             if not document_id or not local_path:
                 skipped.append({**document, "skip_reason": "missing_document_id_or_path"})
                 continue
 
-            # Compute file hash from file content - this becomes the unique identifier
-            try:
-                path = Path(local_path)
-                if not path.exists():
-                    skipped.append({**document, "skip_reason": "file_not_found"})
-                    continue
-                file_hash = tracker.compute_file_hash(path)
-            except Exception as exc:
-                skipped.append({**document, "skip_reason": f"hash_computation_failed: {exc}"})
+            if not Path(local_path).exists():
+                skipped.append({**document, "skip_reason": "file_not_found"})
                 continue
 
-            # Use hash as the document identifier
-            existing = tracker.get_document_record(file_hash)
+            existing = tracker.get_source_record(document_id)
             if existing is None:
-                # New file - process it
                 to_process.append({
                     **document,
-                    "file_hash": file_hash,
                     "target_status": "Parsed",
-                    "hash_document_id": file_hash,
                 })
                 continue
 
             # Existing document - check if modified
-            existing_modified = str(existing.get("modificationDate") or "").strip() or None
-            if existing_modified != modified_time:
+            existing_schema_id = str(existing.get("schema_id") or "").strip()
+            existing_status = str(existing.get("status") or "").strip()
+            scheme_changed = existing_schema_id != schema_id
+            retry_required = existing_status not in {"Sent", "Parsed", "Corrupted", "Duplicated"}
+            if scheme_changed or retry_required:
                 to_process.append({
                     **document,
-                    "file_hash": file_hash,
                     "target_status": "Modified",
-                    "hash_document_id": file_hash,
+                    "previous_identity_key": existing.get("document_id"),
                 })
             else:
                 skipped.append({
                     **document,
-                    "skip_reason": "already_processed_same_content",
-                    "file_hash": file_hash,
+                    "skip_reason": "source_unchanged",
                 })
     except Exception as exc:
         docs = [dict(doc, target_status="Parsed") for doc in documents]

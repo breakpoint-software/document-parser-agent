@@ -7,7 +7,6 @@ from pathlib import Path
 from typing import Any
 
 from document_processing import extract_text, is_image_document, load_documents, to_data_uri
-from firebase_processed_files import build_firebase_tracker
 from receipt_ai import extract_receipt_json, extract_receipt_json_from_image
 from receipt_results import build_empty_result
 
@@ -31,23 +30,9 @@ def main() -> int:
     input_folder = Path(args.input)
     files = load_documents(input_folder)
     results: list[dict[str, Any]] = []
-    skipped_files: list[str] = []
-    firebase_warning: str | None = None
-    firebase_tracker = build_firebase_tracker()
 
     for file_path in files:
         relative_name = file_path.relative_to(input_folder).as_posix()
-        file_hash: str | None = None
-
-        if firebase_tracker is not None:
-            try:
-                file_hash = firebase_tracker.compute_file_hash(file_path)
-                if firebase_tracker.is_processed(file_hash):
-                    skipped_files.append(relative_name)
-                    continue
-            except Exception as exc:
-                firebase_warning = f"Firebase tracking unavailable. Processing remaining files without deduplication. Details: {exc}"
-                firebase_tracker = None
 
         if is_image_document(file_path):
             image_data_uri = to_data_uri(file_path)
@@ -63,17 +48,7 @@ def main() -> int:
         result["source_file"] = relative_name
         results.append(result)
 
-        if firebase_tracker is not None and file_hash is not None:
-            try:
-                firebase_tracker.mark_processed(file_hash, relative_name)
-            except Exception:
-                pass
-
     payload: dict[str, Any] = {"input_folder": str(input_folder), "results": results}
-    if skipped_files:
-        payload["skipped_already_processed"] = skipped_files
-    if firebase_warning:
-        payload["firebase_warning"] = firebase_warning
 
     rendered = json.dumps(payload, indent=2, ensure_ascii=False)
 

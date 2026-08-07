@@ -27,11 +27,11 @@ def test_field_presence(result: dict) -> tuple[bool, list[str]]:
     required_fields = [
         "source_file",
         "document_type",
-        "fecha",
-        "fecha_vencimiento",
-        "cuit_proveedor",
-        "description_proveedor",
-        "moneda",
+        "invoice_date",
+        "due_date",
+        "supplier_tax_id",
+        "supplier_name",
+        "currency",
         "subtotal",
         "taxes",
         "total",
@@ -50,8 +50,8 @@ def test_field_types(result: dict) -> tuple[bool, list[str]]:
     errors = []
     
     # String fields
-    string_fields = ["source_file", "document_type", "fecha", "fecha_vencimiento", 
-                    "cuit_proveedor", "description_proveedor", "moneda"]
+    string_fields = ["source_file", "document_type", "invoice_date", "due_date",
+                    "supplier_tax_id", "supplier_name", "currency"]
     for field in string_fields:
         value = result.get(field)
         if value is not None and not isinstance(value, str):
@@ -88,9 +88,9 @@ def test_value_validity(result: dict) -> tuple[bool, list[str]]:
             errors.append(f"{field}: negative amount '{value}'")
     
     # Check currency if present
-    currency = result.get("moneda")
+    currency = result.get("currency")
     if currency and len(currency) > 3:  # Currency codes are usually 3 chars
-        errors.append(f"moneda: suspicious currency '{currency}'")
+        errors.append(f"currency: suspicious currency '{currency}'")
     
     return len(errors) == 0, errors
 
@@ -143,9 +143,9 @@ def test_document(doc_path: Path):
         # Show extracted data
         print(f"\n    Extracted data:")
         print(f"      Type: {result.get('document_type')}")
-        print(f"      Vendor: {result.get('description_proveedor')}")
-        print(f"      Total: {result.get('total')} {result.get('moneda')}")
-        print(f"      Date: {result.get('fecha')}")
+        print(f"      Vendor: {result.get('supplier_name')}")
+        print(f"      Total: {result.get('total')} {result.get('currency')}")
+        print(f"      Date: {result.get('invoice_date')}")
         print(f"      Confidence: {result.get('confidence')}")
         
         return True

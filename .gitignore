@@ -5,3 +5,5 @@
 /document-parser-ui/.vscode
 /document-parser-api/package-lock.json
 /.vscode/launch.json
+/document-parser/extraction_schemes
+/document-parser/seed_extraction_schemes.py

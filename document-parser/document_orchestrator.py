@@ -13,6 +13,7 @@ from dotenv import load_dotenv
 from openai import OpenAI
 
 from document_processing import extract_text, is_image_document, to_data_uri
+from document_identity import build_document_identity
 from firebase_processed_files import (
 	build_firebase_tracker,
 	check_drive_documents_to_process,
@@ -49,13 +50,13 @@ logger.setLevel(logging.DEBUG)
 logger.propagate = False
 
 
-SHEET_COLUMNS = ["fecha", "source_file", "display_description", "total"]
+SHEET_COLUMNS = ["invoice_date", "source_file", "display_description", "total"]
 CORRUPTED_SHEET_NAME = "corrupted data"
 
 
 def _build_display_description(parsed: dict[str, Any]) -> str:
-	provider_name = str(parsed.get("description_proveedor") or "").strip()
-	provider_cuit = str(parsed.get("cuit_proveedor") or "").strip()
+	provider_name = str(parsed.get("supplier_name") or "").strip()
+	provider_cuit = str(parsed.get("supplier_tax_id") or "").strip()
 	city = str(parsed.get("ciudad") or parsed.get("city") or "").strip()
 	parts = [part for part in [provider_name, provider_cuit, city] if part]
 	return " - ".join(parts)
@@ -63,7 +64,7 @@ def _build_display_description(parsed: dict[str, Any]) -> str:
 
 def _build_sheet_row(parsed: dict[str, Any]) -> dict[str, Any]:
 	return {
-		"fecha": parsed.get("fecha"),
+		"invoice_date": parsed.get("invoice_date"),
 		"source_file": parsed.get("source_file"),
 		"display_description": _build_display_description(parsed),
 		"total": parsed.get("total"),
@@ -119,7 +120,7 @@ def _resolve_drive_destination_path(parsed: dict[str, Any]) -> tuple[str, bool]:
 	if not _is_complete_sheet_row(row_for_sheet):
 		return f"Corrupted", True
 
-	invoice_date = _parse_invoice_date(parsed.get("fecha"))
+	invoice_date = _parse_invoice_date(parsed.get("invoice_date"))
 	if invoice_date is None:
 		return f"Corrupted", True
 
@@ -142,6 +143,7 @@ def _parse_document(
 	local_path: str,
 	source_file: str,
 	extraction_instructions: str | None = None,
+	schema_id: str = "arg-invoices",
 ) -> dict[str, Any]:
 	path = Path(local_path)
 	
@@ -160,18 +162,18 @@ def _parse_document(
 			# Send image in original format
 			logger.debug("Sending image in original format to OpenAI")
 			parsed = extract_receipt_json_from_image(
-				client, model, path, to_data_uri(path), extraction_instructions
+				client, model, path, to_data_uri(path), extraction_instructions, schema_id
 			)
 		
 		elif file_type == ".pdf":
 			# Send PDF in original format
 			logger.debug("Sending PDF in original format to OpenAI")
-			parsed = extract_receipt_json_from_pdf(client, model, path, extraction_instructions)
+			parsed = extract_receipt_json_from_pdf(client, model, path, extraction_instructions, schema_id)
 		
 		else:
 			# Send other document types (TXT, DOCX, etc) in original format
 			logger.debug("Sending %s in original format to OpenAI", file_type)
-			parsed = extract_receipt_json_from_document(client, model, path, extraction_instructions)
+			parsed = extract_receipt_json_from_document(client, model, path, extraction_instructions, schema_id)
 		
 		parsed["source_file"] = source_file
 		return parsed
@@ -297,6 +299,7 @@ def orchestrate_single_rule(
 	try:
 		client = _create_openai_client_from_key(openai_api_key)
 		tracker = build_firebase_tracker(tenant_id=tenant_id, rule_id=rule.rule_id)
+		extraction_scheme = FirebaseTenantConfigManager().get_extraction_scheme(rule.schema_id)
 	except RuntimeError as exc:
 		logger.error("Tenant=%s rule=%s failed to initialize clients: %s", tenant_id, rule.rule_id, exc)
 		return {
@@ -351,7 +354,12 @@ def orchestrate_single_rule(
 	]
 	
 	# Check which documents need processing
-	to_process, skipped, tracking_warning = check_drive_documents_to_process(tracker, docs_payload)
+	to_process, skipped, tracking_warning = check_drive_documents_to_process(
+		tracker,
+		docs_payload,
+		rule.schema_id,
+		extraction_scheme["version"],
+	)
 	logger.info(
 		"Tenant=%s rule=%s to_process=%s skipped=%s",
 		tenant_id,
@@ -377,7 +385,11 @@ def orchestrate_single_rule(
 		local_path = str(document.get("local_path") or "").strip()
 		modification_date = document.get("modificationDate")
 		status = str(document.get("target_status") or "Parsed")
-		file_hash = str(document.get("file_hash") or "").strip() or None
+		previous_identity_key = str(document.get("previous_identity_key") or "").strip() or None
+		identity_key: str | None = None
+		identity_claim_created = False
+		identity_previously_present = False
+		sent_to_sheet = False
 		
 		logger.info(
 			"Tenant=%s rule=%s processing document_id=%s source_file=%s",
@@ -387,16 +399,6 @@ def orchestrate_single_rule(
 			source_file,
 		)
 		
-		if tracker.is_processed(file_hash):
-			logger.info(
-				"Tenant=%s rule=%s skipping document_id=%s already processed",
-				tenant_id,
-				rule.rule_id,
-				document_id,
-			)
-			skipped.append({"document_id": document_id, "source_file": source_file, "reason": "Already processed"})
-			continue
-		
 		try:
 			parsed = _parse_document(
 				client,
@@ -404,6 +406,7 @@ def orchestrate_single_rule(
 				local_path,
 				source_file,
 				rule.parsing_prompt,
+				rule.schema_id,
 			)
 			logger.info(
 				"Tenant=%s rule=%s parsed document_id=%s",
@@ -411,9 +414,48 @@ def orchestrate_single_rule(
 				rule.rule_id,
 				document_id,
 			)
+
+			identity = build_document_identity(parsed, extraction_scheme["identity"])
+			if identity is not None:
+				identity_key = identity["identity_key"]
+				parsed.update(identity)
+				claim_result = tracker.claim_document_identity(
+					identity,
+					document_id,
+					source_file,
+					rule.schema_id,
+					parsed,
+				)
+				identity_claim_created = claim_result == "created"
+				identity_previously_present = claim_result == "existing_source"
+				if claim_result is None:
+					logger.info(
+						"Tenant=%s rule=%s skipping redundant document_id=%s identity=%s",
+						tenant_id,
+						rule.rule_id,
+						document_id,
+						identity_key,
+					)
+					skipped.append({
+						"document_id": document_id,
+						"source_file": source_file,
+						"skip_reason": "duplicate_business_identity",
+						"identity_key": identity_key,
+					})
+					continue
+			else:
+				logger.warning(
+					"Tenant=%s rule=%s document_id=%s has no complete identity strategy",
+					tenant_id,
+					rule.rule_id,
+					document_id,
+				)
 			
 			# Determine destination and whether corrupted
-			destination_path, is_corrupted = _resolve_drive_destination_path(parsed)
+			if identity_key is None:
+				destination_path, is_corrupted = "Corrupted", True
+			else:
+				destination_path, is_corrupted = _resolve_drive_destination_path(parsed)
 			if is_corrupted:
 				corrupted_count += 1
 			
@@ -435,15 +477,17 @@ def orchestrate_single_rule(
 				)
 			
 			# Save document record
-			if tracker is not None:
+			if identity_key is not None:
 				tracker.save_document_record(
-					file_hash=file_hash,
-					document_id=document_id,
+					identity_key=identity_key,
+					drive_file_id=document_id,
 					source_file=source_file,
-					modification_date=modification_date,
-					status=status,
+					status="Corrupted" if is_corrupted else "Parsed",
+					schema_id=rule.schema_id,
 					parsed_data=parsed,
 				)
+			if previous_identity_key and previous_identity_key != identity_key:
+				tracker.release_document_identity(previous_identity_key, document_id)
 			
 			if status == "Modified":
 				modified_count += 1
@@ -452,7 +496,7 @@ def orchestrate_single_rule(
 			
 			# Send to Google Sheets if enabled
 			worksheet_name: str | None = None
-			if rule.target_sheet_id:
+			if rule.target_sheet_id and send_to_sheet and not identity_previously_present:
 				row_for_sheet = _build_sheet_row(parsed)
 				row_for_sheet["source_file"] = _build_hyperlink_formula(
 					_build_drive_file_url(document_id),
@@ -475,8 +519,9 @@ def orchestrate_single_rule(
 						document_id,
 						worksheet_name,
 					)
-					if tracker is not None and file_hash:
-						tracker.mark_document_sent(file_hash)
+					if identity_key is not None:
+						tracker.mark_document_sent(identity_key)
+					sent_to_sheet = True
 					sent_count += 1
 				except GoogleSheetsConfigError as exc:
 					logger.error(
@@ -492,16 +537,30 @@ def orchestrate_single_rule(
 						"error": f"Google Sheets error: {exc}",
 					})
 					continue
+			elif rule.target_sheet_id and send_to_sheet and identity_previously_present:
+				logger.info(
+					"Tenant=%s rule=%s skipping sheet append for existing document_id=%s identity=%s",
+					tenant_id,
+					rule.rule_id,
+					document_id,
+					identity_key,
+				)
 			
 			processed_items.append({
 				"document_id": document_id,
 				"source_file": source_file,
 				"modificationDate": modification_date,
-				"status": "Corrupted" if is_corrupted else ("Sent" if send_to_sheet else status),
+				"status": "Corrupted" if is_corrupted else ("Sent" if sent_to_sheet else status),
 				"destination_path": destination_path,
+				"identity_key": identity_key,
 			})
 		
 		except Exception as exc:
+			if identity_claim_created and identity_key is not None:
+				try:
+					tracker.release_document_identity(identity_key, document_id)
+				except Exception:
+					logger.exception("Failed to release identity claim=%s", identity_key)
 			logger.exception(
 				"Tenant=%s rule=%s failed processing document_id=%s",
 				tenant_id,

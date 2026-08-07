@@ -63,6 +63,7 @@ FIREBASE_SERVICE_ACCOUNT_FILE=C:/secure/firebase-service-account.json
 # FIREBASE_SERVICE_ACCOUNT_JSON={"type":"service_account",...}
 FIREBASE_TENANTS_COLLECTION=tenants
 FIREBASE_TRACK_PROCESSED=true
+FIREBASE_EXTRACTION_SCHEMES_COLLECTION=extraction_schemes
 
 # Google OAuth client used for every tenant
 GOOGLE_CLIENT_ID=your-client-id.apps.googleusercontent.com
@@ -106,8 +107,19 @@ Each processing rule is stored at `tenants/{tenant_id}/rules/{rule_id}`:
 	"target_sheet_id": "google-spreadsheet-id",
 	"sheet_tab_name": "Salidas",
 	"parsing_prompt": null,
+	"schema_id": "arg-invoices",
 	"is_enabled": true
 }
+```
+
+Extraction schemas are shared globally and stored at `extraction_schemes/{schema_id}`. The `schema_id` on each rule selects the global schema used for that rule. Existing rules without this field use `arg-invoices`.
+
+Each extraction scheme also defines ordered identity strategies. The first strategy with all required extracted fields produces the canonical document ID. In the execution database, canonical identities are rule-scoped at `{tenant_id}/{rule_id}/processed_documents/{identity_key}`, and Drive source state is stored at `{tenant_id}/{rule_id}/source_documents/{drive_document_id}`. A second source with an existing identity in the same rule is treated as redundant and is not moved or written to Sheets.
+
+After changing a scheme JSON file, increment its `version` and upload it to Firestore. The version change causes unchanged Drive sources to be re-extracted:
+
+```powershell
+python seed_extraction_schemes.py --document-id arg-invoices --overwrite
 ```
 
 The service account identified by `FIREBASE_SERVICE_ACCOUNT_FILE` or `FIREBASE_SERVICE_ACCOUNT_JSON` must be authorized to read and write these documents and the processing records created by the application.

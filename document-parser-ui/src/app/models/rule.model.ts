@@ -9,6 +9,7 @@ export interface Rule {
 	target_sheet_name?: string;
 	sheet_tab_name: string;
 	parsing_prompt: string;
+	schema_id?: string;
 	is_enabled: boolean;
 	created_at?: Date;
 	updated_at?: Date;

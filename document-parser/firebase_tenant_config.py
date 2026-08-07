@@ -33,6 +33,7 @@ class RuleObject:
     target_sheet_id: str
     sheet_tab_name: str
     parsing_prompt: str | None = None
+    schema_id: str = "arg-invoices"
     is_enabled: bool = True
 
     def to_dict(self) -> dict[str, Any]:
@@ -44,6 +45,7 @@ class RuleObject:
             "target_sheet_id": self.target_sheet_id,
             "sheet_tab_name": self.sheet_tab_name,
             "parsing_prompt": self.parsing_prompt,
+            "schema_id": self.schema_id,
             "is_enabled": self.is_enabled,
         }
 
@@ -57,6 +59,7 @@ class RuleObject:
             target_sheet_id=data.get("target_sheet_id", ""),
             sheet_tab_name=data.get("sheet_tab_name", ""),
             parsing_prompt=data.get("parsing_prompt"),
+            schema_id=data.get("schema_id", "arg-invoices"),
             is_enabled=data.get("is_enabled", True),
         )
 
@@ -152,6 +155,57 @@ class FirebaseTenantConfigManager:
             return None
         data = doc.to_dict() or {}
         return TenantConfig.from_dict(data, tenant_id)
+
+    def get_extraction_scheme(
+        self,
+        schema_id: str,
+        collection_name: str = "extraction_schemes",
+    ) -> dict[str, Any]:
+        """Retrieve and validate a global extraction scheme."""
+        doc = self._get_db().collection(collection_name).document(schema_id).get()
+        if not doc.exists:
+            raise FirebaseConfigError(f"Extraction schema '{collection_name}/{schema_id}' was not found.")
+
+        data = doc.to_dict() or {}
+        if data.get("is_enabled") is not True:
+            raise FirebaseConfigError(f"Extraction schema '{collection_name}/{schema_id}' is disabled.")
+
+        schema = data.get("schema")
+        if not isinstance(schema, dict):
+            raise FirebaseConfigError(f"Extraction schema '{collection_name}/{schema_id}' has no valid schema map.")
+        if schema.get("type") != "object" or not isinstance(schema.get("properties"), dict):
+            raise FirebaseConfigError(f"Extraction schema '{collection_name}/{schema_id}' must define an object schema.")
+
+        name = data.get("name")
+        if not isinstance(name, str) or not name.strip():
+            raise FirebaseConfigError(f"Extraction schema '{collection_name}/{schema_id}' has no valid name.")
+
+        identity = data.get("identity")
+        if not isinstance(identity, dict):
+            raise FirebaseConfigError(f"Extraction schema '{collection_name}/{schema_id}' has no identity configuration.")
+        try:
+            from document_identity import validate_identity_config
+
+            validate_identity_config(identity, schema)
+        except ValueError as exc:
+            raise FirebaseConfigError(f"Extraction schema '{collection_name}/{schema_id}' has invalid identity configuration: {exc}") from exc
+
+        return {
+            "name": name.strip(),
+            "version": int(data.get("version", 1)),
+            "schema": schema,
+            "strict": data.get("strict", True),
+            "identity": identity,
+        }
+
+    def get_extraction_schema(
+        self,
+        schema_id: str,
+        collection_name: str = "extraction_schemes",
+    ) -> dict[str, Any]:
+        """Retrieve the OpenAI response format from a global extraction scheme."""
+        scheme = self.get_extraction_scheme(schema_id, collection_name)
+        return {key: scheme[key] for key in ("name", "schema", "strict")}
 
     def save_tenant(self, tenant: TenantConfig) -> None:
         """Save a tenant configuration."""

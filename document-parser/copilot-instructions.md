@@ -87,13 +87,11 @@ tenants/{tenant_id}
   │     target_sheet_id, sheet_tab_name, parsing_prompt, is_enabled
   └─ (metadata fields: name, active, created_at)
 
-processed_files/{tenant_id}
-  └─ {document_hash} (document)
-     └─ file_hash, file_name, timestamp
+{tenant_id}/{rule_id}/processed_documents/{identity_key}
+  └─ identity_key, identity_strategy, identity_strength, status, parsed_data
 
-processed_documents/{tenant_id}
-  └─ {document_id} (document)
-     └─ status (Parsed|Modified|Sent), parsed_data, timestamp, modificationDate
+{tenant_id}/{rule_id}/source_documents/{drive_document_id}
+  └─ document_id, identity_key, status, modificationDate
 ```
 
 **Default Tenant**:
