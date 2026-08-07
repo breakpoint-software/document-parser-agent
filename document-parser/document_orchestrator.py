@@ -496,7 +496,7 @@ def orchestrate_single_rule(
 			
 			# Send to Google Sheets if enabled
 			worksheet_name: str | None = None
-			if rule.target_sheet_id and send_to_sheet and not identity_previously_present:
+			if rule.target_sheet_id and send_to_sheet and not identity_previously_present and not is_corrupted:
 				row_for_sheet = _build_sheet_row(parsed)
 				row_for_sheet["source_file"] = _build_hyperlink_formula(
 					_build_drive_file_url(document_id),
@@ -537,6 +537,13 @@ def orchestrate_single_rule(
 						"error": f"Google Sheets error: {exc}",
 					})
 					continue
+			elif rule.target_sheet_id and send_to_sheet and is_corrupted:
+				logger.info(
+					"Tenant=%s rule=%s skipping corrupted document_id=%s",
+					tenant_id,
+					rule.rule_id,
+					document_id,
+				)
 			elif rule.target_sheet_id and send_to_sheet and identity_previously_present:
 				logger.info(
 					"Tenant=%s rule=%s skipping sheet append for existing document_id=%s identity=%s",
