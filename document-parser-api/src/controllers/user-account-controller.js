@@ -3,30 +3,30 @@ function createUserAccountController({ admin, db }) {
 
   async function accountResponse(res, accountDoc) {
     const account = accountDoc.data();
-    const tenantDoc = await db.collection('tenants').doc(account.tenant_id).get();
+    const workspaceDoc = await db.collection('workspaces').doc(account.workspace_id).get();
     return res.json({
       success: true,
       userAccount: { id: accountDoc.id, ...account },
-      tenant: tenantDoc.exists ? { id: tenantDoc.id, ...tenantDoc.data() } : null
+      workspace: workspaceDoc.exists ? { id: workspaceDoc.id, ...workspaceDoc.data() } : null
     });
   }
 
   async function createAccount(req, res) {
     const uid = req.user.uid;
     const displayName = String(req.body.displayName || '').trim();
-    const tenantData = {
-      tenant_id: uid,
+    const workspaceData = {
+      workspace_id: uid,
       name: displayName || req.user.email.split('@')[0],
       email: req.user.email,
       active: true,
       updated_at: admin.firestore.FieldValue.serverTimestamp()
     };
-    await db.collection('tenants').doc(uid).set(tenantData, { merge: true });
+    await db.collection('workspaces').doc(uid).set(workspaceData, { merge: true });
 
     const accountData = {
       id: uid,
       uid,
-      tenant_id: uid,
+      workspace_id: uid,
       email: req.user.email,
       displayName,
       photoURL: req.body.photoURL || '',
@@ -53,8 +53,8 @@ function createUserAccountController({ admin, db }) {
     return getAccount(req, res);
   }
 
-  async function listTenantAccounts(req, res) {
-    const snapshot = await accounts.where('tenant_id', '==', req.user.uid).get();
+  async function listWorkspaceAccounts(req, res) {
+    const snapshot = await accounts.where('workspace_id', '==', req.user.uid).get();
     return res.json({ success: true, userAccounts: snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })) });
   }
 
@@ -63,7 +63,7 @@ function createUserAccountController({ admin, db }) {
     return res.json({ success: true, message: 'User account deleted successfully' });
   }
 
-  return { createAccount, getAccount, updateAccount, listTenantAccounts, deleteAccount };
+  return { createAccount, getAccount, updateAccount, listWorkspaceAccounts, deleteAccount };
 }
 
 module.exports = { createUserAccountController };

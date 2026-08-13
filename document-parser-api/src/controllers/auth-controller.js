@@ -1,8 +1,9 @@
 function createAuthController({ admin, auth, db, googleClient }) {
-  async function upsertTenantForUser({ uid, email, displayName, photoURL, refreshToken }) {
-    const tenantRef = db.collection('tenants').doc(uid);
-    const tenantData = {
-      tenant_id: uid,
+  async function upsertWorkspaceForUser({ uid, email, displayName, photoURL, refreshToken }) {
+    const workspaceRef = db.collection('workspaces').doc(uid);
+    const existingWorkspace = await workspaceRef.get();
+    const workspaceData = {
+      workspace_id: uid,
       name: (displayName || email.split('@')[0]).trim(),
       email,
       displayName: displayName || '',
@@ -12,12 +13,14 @@ function createAuthController({ admin, auth, db, googleClient }) {
       last_sign_in: admin.firestore.FieldValue.serverTimestamp()
     };
 
+    if (!existingWorkspace.exists) workspaceData.execution_mode = 'source_by_rule';
+
     if (refreshToken) {
-      tenantData.refresh_token = refreshToken;
-      tenantData.refresh_token_updated_at = admin.firestore.FieldValue.serverTimestamp();
+      workspaceData.refresh_token = refreshToken;
+      workspaceData.refresh_token_updated_at = admin.firestore.FieldValue.serverTimestamp();
     }
 
-    await tenantRef.set(tenantData, { merge: true });
+    await workspaceRef.set(workspaceData, { merge: true });
   }
 
   async function googleLogin(req, res) {
@@ -60,7 +63,7 @@ function createAuthController({ admin, auth, db, googleClient }) {
         });
       }
 
-      await upsertTenantForUser({
+      await upsertWorkspaceForUser({
         uid: firebaseUser.uid,
         email: googleUser.email,
         displayName: googleUser.name,
@@ -80,20 +83,20 @@ function createAuthController({ admin, auth, db, googleClient }) {
   }
 
   async function getCurrentUser(req, res) {
-    const tenantDoc = await db.collection('tenants').doc(req.user.uid).get();
-    if (!tenantDoc.exists) return res.status(404).json({ error: 'User not found' });
-    const tenant = tenantDoc.data();
+    const workspaceDoc = await db.collection('workspaces').doc(req.user.uid).get();
+    if (!workspaceDoc.exists) return res.status(404).json({ error: 'User not found' });
+    const workspace = workspaceDoc.data();
     return res.json({
       success: true,
-      user: { uid: req.user.uid, email: tenant.email, displayName: tenant.displayName, photoURL: tenant.photoURL },
-      tenant: { id: req.user.uid, ...tenant }
+      user: { uid: req.user.uid, email: workspace.email, displayName: workspace.displayName, photoURL: workspace.photoURL },
+      workspace: { id: req.user.uid, ...workspace }
     });
   }
 
   async function getAccessToken(req, res) {
     try {
-      const tenantDoc = await db.collection('tenants').doc(req.user.uid).get();
-      const refreshToken = tenantDoc.data()?.refresh_token;
+      const workspaceDoc = await db.collection('workspaces').doc(req.user.uid).get();
+      const refreshToken = workspaceDoc.data()?.refresh_token;
       if (!refreshToken) return res.status(400).json({ error: 'No refresh token found. User must login again.', code: 'NO_REFRESH_TOKEN' });
 
       const params = new URLSearchParams({

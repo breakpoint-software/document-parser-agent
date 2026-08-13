@@ -1,89 +1,71 @@
-<div class="auth-container">
-  <div class="header">
-    <h1>Google Drive Integration</h1>
-    <h2>{{ getStepTitle() }}</h2>
-  </div>
+<div class="mx-auto max-w-3xl space-y-6">
+<header class="space-y-2">
+  <h1 class="text-2xl font-semibold leading-tight sm:text-3xl">Google Drive</h1>
+  <p>Choose and share the files used by your processing rules.</p>
+</header>
+<mat-card appearance="outlined">
+  <mat-card-header>
+    <mat-card-title>Google Drive Integration</mat-card-title>
+    <mat-card-subtitle>{{ getStepTitle() }}</mat-card-subtitle>
+  </mat-card-header>
 
-  <!-- Status Section -->
-  <div class="status-section">
-    <div class="status-badge" [ngClass]="authState?.isAuthenticated ? 'connected' : 'disconnected'">
-      {{ uiState.authStatus }}
-    </div>
-  </div>
+  <mat-card-content class="space-y-6 p-4 sm:p-6">
+    <p>{{ uiState.authStatus }}</p>
 
-  <!-- Error Message -->
-  <div *ngIf="uiState.errorMessage" class="error-message">
-    {{ uiState.errorMessage }}
-  </div>
-
-  <!-- Step 1: File Picker (Auto-opens after Firebase login) -->
-  <div *ngIf="uiState.currentStep === 'picker'" class="step-content">
-    <div class="step-description">
-      <p>{{ uiState.isLoading ? '⏳ Opening Google Drive Picker...' : '✅ Google Drive Picker is ready' }}</p>
-      <p class="substep" *ngIf="uiState.isLoading">The picker should open automatically. If it doesn't, please wait...</p>
-      <p class="substep" *ngIf="!uiState.isLoading">1. Browse through your Google Drive</p>
-      <p class="substep" *ngIf="!uiState.isLoading">2. Select the files/folders you want</p>
-      <p class="substep" *ngIf="!uiState.isLoading">3. Click "Select" in the picker modal</p>
-    </div>
-  </div>
-
-  <!-- Step 3: Sharing -->
-  <div *ngIf="uiState.currentStep === 'sharing'" class="step-content">
-    <div class="step-description">
-      <p>Selected {{ uiState.selectedItems.length }} item(s) ready to share.</p>
+    <div *ngIf="uiState.errorMessage" class="flex items-start gap-2" role="alert">
+      <svg lucideCircleAlert class="h-5 w-5 shrink-0" aria-hidden="true"></svg>
+      <span>{{ uiState.errorMessage }}</span>
     </div>
 
-    <div class="selected-items">
-      <h3>📂 Selected Items:</h3>
-      <ul>
-        <li *ngFor="let item of uiState.selectedItems" class="item">
-          <span class="icon">{{ item.type === 'folder' ? '📁' : getFileIcon(item.mimeType) }}</span>
-          <div class="item-details">
-            <span class="name">{{ item.name }}</span>
-            <span class="mime-type">{{ item.mimeType || '—' }}</span>
-          </div>
-        </li>
-      </ul>
-    </div>
-
-    <div class="step-description">
-      <p class="substep">1. Click "Share with Service Account" to grant access</p>
-      <p class="substep">2. The Service Account will receive read permission</p>
-      <p class="substep">3. Access confirmation will be displayed</p>
-    </div>
-
-    <button
-      class="btn btn-primary"
-      (click)="shareWithServiceAccount()"
-      [disabled]="uiState.isLoading"
-    >
-      {{ uiState.isLoading ? 'Sharing...' : 'Share with Service Account' }}
-    </button>
-  </div>
-
-  <!-- Step 4: Complete -->
-  <div *ngIf="uiState.currentStep === 'complete'" class="step-content">
-    <div class="success-message">
-      <h3>✅ Connected Successfully!</h3>
-      <p>All items have been shared with the Service Account.</p>
-    </div>
-
-    <div class="sharing-results">
-      <h3>Sharing Results:</h3>
-      <div *ngFor="let result of uiState.sharingResults" class="result-item" [ngClass]="result.status">
-        <strong>{{ result.fileName }}</strong>
-        <p class="message">{{ result.message }}</p>
+    <section *ngIf="uiState.currentStep === 'picker'" class="space-y-3">
+      <div class="flex items-center gap-3">
+        <mat-spinner *ngIf="uiState.isLoading" diameter="24"></mat-spinner>
+        <svg *ngIf="!uiState.isLoading" lucideCircleCheck class="h-5 w-5" aria-hidden="true"></svg>
+        <p>{{ uiState.isLoading ? 'Opening Google Drive Picker...' : 'Google Drive Picker is ready' }}</p>
       </div>
-    </div>
+      <ol *ngIf="!uiState.isLoading" class="list-decimal space-y-1 pl-6">
+        <li>Browse through your Google Drive.</li>
+        <li>Select the files or folders you want.</li>
+        <li>Click Select in the picker.</li>
+      </ol>
+    </section>
 
-    <button class="btn btn-secondary" (click)="reset()">
-      Start Over
-    </button>
-  </div>
+    <section *ngIf="uiState.currentStep === 'sharing'" class="space-y-4">
+      <p>{{ uiState.selectedItems.length }} item(s) ready to share.</p>
+      <mat-list>
+        <mat-list-item *ngFor="let item of uiState.selectedItems">
+          <svg matListItemIcon *ngIf="item.type === 'folder'" lucideFolder class="h-5 w-5" aria-hidden="true"></svg>
+          <svg matListItemIcon *ngIf="item.type !== 'folder'" lucideFile class="h-5 w-5" aria-hidden="true"></svg>
+          <span matListItemTitle>{{ item.name }}</span>
+          <span matListItemLine>{{ item.mimeType || 'Unknown type' }}</span>
+        </mat-list-item>
+      </mat-list>
+      <button mat-flat-button class="responsive-action" type="button" aria-label="Share with service account" (click)="shareWithServiceAccount()" [disabled]="uiState.isLoading">
+        <svg lucideShare2 class="responsive-action__icon mr-2 inline h-4 w-4" aria-hidden="true"></svg>
+        <span class="sr-only sm:not-sr-only">{{ uiState.isLoading ? 'Sharing...' : 'Share with Service Account' }}</span>
+      </button>
+    </section>
 
-  <!-- Loading Indicator -->
-  <div *ngIf="uiState.isLoading" class="loading-spinner">
-    <div class="spinner"></div>
-    <p>Please wait...</p>
-  </div>
+    <section *ngIf="uiState.currentStep === 'complete'" class="space-y-4">
+      <div class="flex items-start gap-2">
+        <svg lucideCircleCheck class="h-5 w-5 shrink-0" aria-hidden="true"></svg>
+        <div>
+          <h3 class="text-lg">Connected Successfully</h3>
+          <p>All items have been shared with the service account.</p>
+        </div>
+      </div>
+      <mat-divider></mat-divider>
+      <mat-list>
+        <mat-list-item *ngFor="let result of uiState.sharingResults">
+          <span matListItemTitle>{{ result.fileName }}</span>
+          <span matListItemLine>{{ result.message }}</span>
+        </mat-list-item>
+      </mat-list>
+      <button mat-stroked-button class="responsive-action" type="button" aria-label="Start over" (click)="reset()">
+        <svg lucideRotateCcw class="responsive-action__icon mr-2 inline h-4 w-4" aria-hidden="true"></svg>
+        <span class="sr-only sm:not-sr-only">Start Over</span>
+      </button>
+    </section>
+  </mat-card-content>
+</mat-card>
 </div>

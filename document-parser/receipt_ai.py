@@ -8,7 +8,7 @@ from functools import lru_cache
 from pathlib import Path
 from typing import Any
 
-from firebase_tenant_config import FirebaseTenantConfigManager
+from firebase_workspace_config import FirebaseWorkspaceConfigManager
 
 
 logger = logging.getLogger(__name__)
@@ -21,7 +21,7 @@ def load_extraction_scheme(schema_id: str) -> dict[str, Any]:
     if not collection_name or not schema_id:
         raise RuntimeError("Firebase extraction schema collection and document ID must not be blank.")
 
-    manager = FirebaseTenantConfigManager()
+    manager = FirebaseWorkspaceConfigManager()
     return manager.get_extraction_scheme(schema_id, collection_name)
 
 
@@ -57,7 +57,7 @@ Extraction instructions
 
 5. Preserve identifiers exactly as printed.
    Examples:
-   - CUIT
+    - CUIT
    - VAT ID
    - Invoice Number
    - Point of Sale
@@ -91,7 +91,7 @@ def extract_receipt_json(
     model: str,
     file_path: Path,
     text: str,
-    schema_id: str = "arg-invoices",
+    schema_id: str,
 ) -> dict[str, Any]:
     logger.debug("extract_receipt_json called: file=%s, model=%s, text_length=%s", file_path.name, model, len(text))
     extraction_scheme = load_extraction_scheme(schema_id)
@@ -139,7 +139,7 @@ def extract_receipt_json_from_image(
     model: str,
     file_path: Path,
     image_data_uri: str,
-    schema_id: str = "arg-invoices",
+    schema_id: str,
 ) -> dict[str, Any]:
     logger.debug("extract_receipt_json_from_image called: file=%s, model=%s, image_size=%s bytes", 
                 file_path.name, model, len(image_data_uri))
@@ -202,7 +202,7 @@ def extract_receipt_json_from_pdf(
     client: Any,
     model: str,
     file_path: Path,
-    schema_id: str = "arg-invoices",
+    schema_id: str,
 ) -> dict[str, Any]:
     """Upload PDF to OpenAI Files API and extract structured data."""
     logger.debug("extract_receipt_json_from_pdf called: file=%s, model=%s", file_path.name, model)
@@ -284,7 +284,7 @@ def extract_receipt_json_from_document(
     client: Any,
     model: str,
     file_path: Path,
-    schema_id: str = "arg-invoices",
+    schema_id: str,
 ) -> dict[str, Any]:
     """Send document type to OpenAI by extracting text (DOCX, TXT, etc)."""
     logger.debug("extract_receipt_json_from_document called: file=%s, model=%s", file_path.name, model)

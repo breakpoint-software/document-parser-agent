@@ -1,0 +1,30 @@
+<div
+	class="flex min-h-12 items-center gap-3 rounded-lg border px-4 py-3"
+	[ngClass]="{
+		'border-neutral-200 bg-neutral-50 text-neutral-900 dark:border-neutral-700 dark:bg-neutral-900 dark:text-neutral-100': type === 'loading',
+		'border-red-200 bg-red-50 text-red-900 dark:border-red-900 dark:bg-red-950 dark:text-red-100': type === 'error',
+		'border-emerald-200 bg-emerald-50 text-emerald-900 dark:border-emerald-900 dark:bg-emerald-950 dark:text-emerald-100': type === 'success'
+	}"
+	[attr.role]="type === 'error' ? 'alert' : 'status'"
+	[attr.aria-live]="type === 'error' ? 'assertive' : 'polite'"
+>
+	@switch (type) {
+		@case ('loading') {
+			<mat-spinner diameter="20" aria-hidden="true"></mat-spinner>
+		}
+		@case ('error') {
+			<svg lucideCircleAlert class="h-5 w-5 shrink-0" aria-hidden="true"></svg>
+		}
+		@case ('success') {
+			<svg lucideCircleCheck class="h-5 w-5 shrink-0" aria-hidden="true"></svg>
+		}
+	}
+
+	<span class="min-w-0 flex-1 leading-6">{{ message }}</span>
+
+	@if (dismissible && type !== 'loading') {
+		<button mat-icon-button type="button" [attr.aria-label]="type === 'error' ? 'Dismiss error' : 'Dismiss success message'" (click)="dismissed.emit()">
+			<svg lucideX class="h-5 w-5" aria-hidden="true"></svg>
+		</button>
+	}
+</div>

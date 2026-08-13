@@ -28,8 +28,6 @@ export class GoogleAuthService {
   constructor() {
     this.loadTokenFromStorage();
     void this.loadGoogleIdentityServices();
-    console.log('GoogleAuthService initialized with Client ID:', this.GOOGLE_CLIENT_ID);
-    console.log('Redirect URI:', this.REDIRECT_URI);
   }
 
   /**
@@ -44,7 +42,6 @@ export class GoogleAuthService {
       return;
     }
 
-    console.log('🔵 Initiating Google OAuth flow...');
     const params = new URLSearchParams({
       client_id: this.GOOGLE_CLIENT_ID,
       redirect_uri: this.REDIRECT_URI,
@@ -55,7 +52,6 @@ export class GoogleAuthService {
     });
 
     const authUrl = `https://accounts.google.com/o/oauth2/v2/auth?${params.toString()}`;
-    console.log('🔗 Redirecting to:', authUrl);
     window.location.href = authUrl;
   }
 
@@ -118,7 +114,6 @@ export class GoogleAuthService {
 
     this.authState.next(state);
     sessionStorage.setItem('access_token', accessToken);
-    console.log('✅ Google access token stored successfully');
   }
 
   /**

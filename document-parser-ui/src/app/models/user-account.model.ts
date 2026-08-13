@@ -1,8 +1,8 @@
-import { Tenant } from './tenant.model';
+import { Workspace } from './workspace.model';
 
 /**
  * User Account Model
- * Represents a user account with tenant association
+ * Represents a user account with workspace association
  */
 export interface UserAccount {
   id: string;
@@ -10,7 +10,7 @@ export interface UserAccount {
   displayName?: string;
   photoURL?: string;
   uid: string; // Firebase UID
-  tenant_id: string; // Associated tenant ID
+  workspace_id: string; // Associated workspace ID
   created_at: Date;
   updated_at: Date;
 }
@@ -28,8 +28,8 @@ export interface UserAccountCreateRequest {
 
 /**
  * User Account Response
- * API response containing user and tenant data
+ * API response containing user and workspace data
  */
 export interface UserAccountResponse extends UserAccount {
-  tenant?: Tenant;
+  workspace?: Workspace;
 }

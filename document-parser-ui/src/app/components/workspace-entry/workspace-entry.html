@@ -1,0 +1,13 @@
+<section class="mx-auto flex min-h-[60vh] max-w-xl flex-col items-center justify-center gap-6 text-center">
+	<svg lucideFileScan class="h-14 w-14" aria-hidden="true"></svg>
+	<div>
+		<h1 class="text-3xl font-semibold">Document workspace</h1>
+		<p class="mt-2 text-sm">Connect Google Drive to configure document routing.</p>
+	</div>
+	<div *ngIf="errorMessage" class="flex items-center gap-2" role="alert">
+		<svg lucideCircleAlert class="h-5 w-5" aria-hidden="true"></svg>
+		<span>{{ errorMessage }}</span>
+	</div>
+	<mat-spinner *ngIf="isLoading" diameter="28"></mat-spinner>
+	<button *ngIf="!isLoading" mat-flat-button type="button" (click)="signIn()">Continue with Google</button>
+</section>

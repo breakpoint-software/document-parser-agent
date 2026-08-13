@@ -68,6 +68,15 @@ NORMALIZERS: dict[str, Callable[[Any, dict[str, Any]], str]] = {
 
 
 def validate_identity_config(identity_config: dict[str, Any], schema: dict[str, Any]) -> None:
+    if "version" not in identity_config or "separator" not in identity_config:
+        raise DocumentIdentityError("Identity configuration must define version and separator.")
+    if not str(identity_config["separator"]):
+        raise DocumentIdentityError("Identity separator must not be empty.")
+    try:
+        int(identity_config["version"])
+    except (TypeError, ValueError) as exc:
+        raise DocumentIdentityError("Identity version must be an integer.") from exc
+
     strategies = identity_config.get("strategies")
     properties = schema.get("properties", {})
     if not isinstance(strategies, list) or not strategies:
@@ -105,8 +114,8 @@ def build_document_identity(
     parsed: dict[str, Any],
     identity_config: dict[str, Any],
 ) -> dict[str, Any] | None:
-    separator = str(identity_config.get("separator") or "|")
-    version = int(identity_config.get("version", 1))
+    separator = str(identity_config["separator"])
+    version = int(identity_config["version"])
 
     for strategy in identity_config["strategies"]:
         required = strategy["required"]

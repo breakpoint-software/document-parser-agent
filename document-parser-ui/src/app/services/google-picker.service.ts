@@ -36,10 +36,6 @@ export class GooglePickerService {
       return;
     }
 
-    console.log('🔵 Loading Google Picker API...');
-    console.log('📌 API Key status:', this.googlePickerApiKey.startsWith('YOUR_') ? '❌ Not configured' : '✅ Configured');
-    console.log('📌 Current origin:', window.location.origin);
-    
     // Step 1: Load the Google API client library
     const gapiScript = document.createElement('script');
     gapiScript.src = 'https://apis.google.com/js/api.js';
@@ -48,7 +44,6 @@ export class GooglePickerService {
     gapiScript.type = 'text/javascript';
     
     gapiScript.onload = () => {
-      console.log('✅ Google API client library loaded');
       this.initializeGapiAndPicker();
     };
     
@@ -57,7 +52,6 @@ export class GooglePickerService {
     };
     
     document.head.appendChild(gapiScript);
-    console.log('✅ Google API client script added to DOM');
     this.pickerApiLoaded = true;
   }
 
@@ -73,7 +67,6 @@ export class GooglePickerService {
       attempts++;
       if ((window as any).gapi && (window as any).gapi.load) {
         clearInterval(checkGapi);
-        console.log('✅ gapi.load is available');
         this.loadPickerLibrary();
       } else if (attempts > maxAttempts) {
         clearInterval(checkGapi);
@@ -86,12 +79,8 @@ export class GooglePickerService {
    * Load the picker library using gapi.load()
    */
   private loadPickerLibrary(): void {
-    console.log('📂 Loading picker library via gapi.load()...');
-    
     (window as any).gapi.load('picker', {
       callback: () => {
-        console.log('✅ Picker library loaded successfully');
-        console.log('✅ window.google.picker is now available');
         this.pickerReady.next(true);
       },
       onerror: () => {
@@ -112,7 +101,6 @@ export class GooglePickerService {
     const accessToken = sessionStorage.getItem('access_token');
     if (!accessToken) {
       console.error('❌ Access token not found in session');
-      console.log('📌 Available session items:', Object.keys(sessionStorage));
       return;
     }
 
@@ -122,13 +110,8 @@ export class GooglePickerService {
       return;
     }
 
-    console.log('📂 Opening Google Folder Picker...');
-    console.log('✅ Access token found (length:', accessToken.length, ')');
-    console.log('✅ Picker ready status:', this.pickerReady.value);
-    
     // If picker is already ready, open immediately
     if (this.pickerReady.value) {
-      console.log('✅ Picker is ready, creating folder picker instance immediately...');
       this.createAndShowFolderPicker(accessToken);
       return;
     }
@@ -141,7 +124,6 @@ export class GooglePickerService {
       )
       .subscribe({
         next: () => {
-          console.log('✅ Picker is ready, creating folder picker instance...');
           this.createAndShowFolderPicker(accessToken);
         },
         error: (err) => {
@@ -184,6 +166,8 @@ export class GooglePickerService {
       const spreadsheetView = new picker.DocsView(picker.ViewId.DOCS)
         .setLabel('Google Sheets')
         .setIncludeFolders(true)
+        .setSelectFolderEnabled(true)
+        .setParent('root')
         .setMimeTypes(`${spreadsheetMimeType},${shortcutMimeType}`);
 
       const pickerInstance = new picker.PickerBuilder()
@@ -240,11 +224,12 @@ export class GooglePickerService {
       const shortcutMimeType = 'application/vnd.google-apps.shortcut';
 
       // Try to use the FOLDERS view if available (Google Picker API)
-      let folderView: any;
-      
       // The best approach is to use a custom DocsView filtered to folders only
-      folderView = new picker.DocsView(ViewId.DOCS);
-      folderView.setIncludeFolders(true).setSelectFolderEnabled(true);
+      const folderView = new picker.DocsView(ViewId.DOCS);
+      folderView.setIncludeFolders(true)
+      .setSelectFolderEnabled(true)
+      .setSelectFolderEnabled(true)
+      .setParent('root');
       folderView.setMimeTypes(`${folderMimeType},${shortcutMimeType}`);
       folderView.setLabel('My Drive');
 
@@ -272,8 +257,6 @@ export class GooglePickerService {
 
       const pickerInstance = pickerBuilder.build();
       pickerInstance.setVisible(true);
-
-      console.log('✅ Google Folder Picker displayed - folders only mode');
     } catch (error) {
       console.error('❌ Error creating folder picker:', error);
       console.error('Full error:', error);
@@ -288,21 +271,12 @@ export class GooglePickerService {
       const google = (window as any).google;
       const picker = google.picker;
 
-      console.log('📂 Picker event triggered');
-      console.log('  Action:', data.action);
-      console.log('  Number of docs:', data.docs ? data.docs.length : 0);
-
       if (data.action === picker.Action.PICKED) {
         if (data.docs && data.docs.length > 0) {
           const doc = data.docs[0];
           const targetId = doc.mimeType === 'application/vnd.google-apps.shortcut'
             ? doc.shortcutDetails?.targetId || doc.id
             : doc.id;
-          console.log('✅ Folder selected:');
-          console.log('  Name:', doc.name);
-          console.log('  ID:', doc.id);
-          console.log('  Type:', doc.type);
-          console.log('  MIME Type:', doc.mimeType);
 
           const item: PickedItem = {
             id: targetId,
@@ -312,30 +286,18 @@ export class GooglePickerService {
           };
 
           // Grant write permissions to the selected folder
-          console.log('🔐 Granting read/write permissions to service account...');
           this.driveSharingService.shareWithServiceAccount(doc.id, doc.name, 'writer')
             .subscribe({
-              next: (result) => {
-                console.log('✅ Permissions granted:', result);
+              next: () => {
                 this.selectedItems.next([item]);
-                console.log('✅ Folder added to selectedItems');
               },
               error: (error) => {
                 console.error('❌ Failed to grant permissions:', error);
                 // Still add the folder even if permission grant fails
                 this.selectedItems.next([item]);
-                console.log('⚠️ Folder added but permission grant failed');
               }
             });
-        } else {
-          console.warn('⚠️ Picked action triggered but no documents found');
         }
-      } else if (data.action === picker.Action.CANCEL) {
-        console.log('⚠️ User cancelled folder picker');
-      } else if (data.action === picker.Action.LOADED) {
-        console.log('📂 Picker interface loaded successfully');
-      } else {
-        console.log('ℹ️ Picker action:', data.action);
       }
     } catch (error) {
       console.error('❌ Error handling picker callback:', error);
@@ -359,8 +321,6 @@ export class GooglePickerService {
         return;
       }
 
-      console.log('📂 Opening Google Picker...');
-      
       // Wait for picker to be ready - take(1) automatically unsubscribes after first emission
       let timedOut = false;
       
@@ -372,7 +332,6 @@ export class GooglePickerService {
         .subscribe({
           next: () => {
             if (!timedOut) {
-              console.log('✅ Picker is ready, creating picker instance...');
               this.createAndShowPicker(accessToken, resolve, reject);
             }
           },
@@ -443,7 +402,6 @@ export class GooglePickerService {
 
       const pickerInstance = pickerBuilder.build();
       pickerInstance.setVisible(true);
-      console.log('✅ Google Picker displayed with multiple views (My Drive, Recent, Starred, Shared)');
     } catch (error) {
       console.error('❌ Error creating picker:', error);
       reject('Failed to create picker: ' + error);
@@ -472,17 +430,13 @@ export class GooglePickerService {
         mimeType: doc.shortcutDetails?.targetMimeType || doc.mimeType
       }));
 
-      console.log('✅ Items picked from Google Drive:', items);
-
       // Grant write permissions to all picked items
       let permissionsGranted = 0;
       items.forEach((item) => {
-        console.log(`🔐 Granting read/write permissions to "${item.name}"...`);
         this.driveSharingService.shareWithServiceAccount(item.id, item.name, 'writer')
           .subscribe({
-            next: (result) => {
+            next: () => {
               permissionsGranted++;
-              console.log(`✅ Permissions granted to "${item.name}"`);
               // When all permissions are granted, update selectedItems and resolve
               if (permissionsGranted === items.length) {
                 this.selectedItems.next(items);
@@ -507,7 +461,6 @@ export class GooglePickerService {
         resolve([]);
       }
     } else if (data.action === picker.Action.CANCEL) {
-      console.log('⚠️ Picker was cancelled');
       reject('Picker was cancelled');
     }
   }

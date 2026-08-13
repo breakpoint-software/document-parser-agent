@@ -1,162 +1,93 @@
-<div class="test-oauth-container">
-  <div class="test-section">
-    <h2>Google OAuth Integration Test</h2>
-    
-    <div class="status-bar">
-      <div class="status-item">
-        <span class="status-label">Authentication Status:</span>
-        <span [class]="'status-badge ' + (isAuthenticated ? 'authenticated' : 'unauthenticated')">
-          {{ isAuthenticated ? '✓ Authenticated' : '✗ Not Authenticated' }}
-        </span>
+<div class="mx-auto max-w-7xl space-y-6">
+  <header class="space-y-2">
+    <h1 class="text-2xl font-semibold leading-tight sm:text-3xl">OAuth Diagnostics</h1>
+    <p>Verify Google Drive and Sheets access for the current session.</p>
+  </header>
+  <mat-card appearance="outlined">
+    <mat-card-header>
+      <mat-card-title>Google OAuth Integration Test</mat-card-title>
+      <mat-card-subtitle>{{ isAuthenticated ? 'Authenticated' : 'Not authenticated' }} · {{ isLoading ? 'Loading' : 'Ready' }}</mat-card-subtitle>
+    </mat-card-header>
+    <mat-card-content class="space-y-6 p-4 sm:p-6">
+      <div *ngIf="isLoading" class="flex items-center gap-3" role="status">
+        <mat-spinner diameter="24"></mat-spinner>
+        <span>Running test...</span>
       </div>
-      <div class="status-item">
-        <span class="status-label">Loading:</span>
-        <span [class]="'status-badge ' + (isLoading ? 'loading' : 'idle')">
-          {{ isLoading ? '⏳ Loading...' : '✓ Ready' }}
-        </span>
+      <div *ngIf="errorMessage" class="flex items-start gap-2" role="alert">
+        <svg lucideCircleAlert class="h-5 w-5 shrink-0" aria-hidden="true"></svg>
+        <span>{{ errorMessage }}</span>
       </div>
-    </div>
 
-    <div *ngIf="errorMessage" class="error-message">
-      ⚠️ {{ errorMessage }}
-    </div>
-
-    <!-- Test Buttons -->
-    <div class="test-buttons">
-      <button 
-        (click)="testTokenValidity()" 
-        [disabled]="!isAuthenticated || isLoading"
-        class="btn btn-info">
-        🔍 Test Token Validity
-      </button>
-      <button 
-        (click)="testWriteToSheet()" 
-        [disabled]="!isAuthenticated || isLoading"
-        class="btn btn-primary">
-        📝 Write to Sheet
-      </button>
-      <button 
-        (click)="testAppendToSheet()" 
-        [disabled]="!isAuthenticated || isLoading"
-        class="btn btn-primary">
-        ➕ Append to Sheet
-      </button>
-      <button 
-        (click)="testBatchUpdateSheet()" 
-        [disabled]="!isAuthenticated || isLoading"
-        class="btn btn-primary">
-        📋 Batch Update Sheet (VERIFIED)
-      </button>
-      <button 
-        (click)="testReadFromSheet()" 
-        [disabled]="!isAuthenticated || isLoading"
-        class="btn btn-secondary">
-        📖 Read from Sheet
-      </button>
-      <button 
-        (click)="testListFilesInFolder()" 
-        [disabled]="!isAuthenticated || isLoading"
-        class="btn btn-secondary">
-        📁 List Drive Files
-      </button>
-      <button 
-        (click)="clearTokenAndRelogin()" 
-        class="btn btn-warning">
-        🔄 Clear Token & Re-login
-      </button>
-      <button 
-        (click)="clearResults()" 
-        class="btn btn-danger">
-        🗑️ Clear Results
-      </button>
-    </div>
-
-    <!-- Test Configuration Display -->
-    <div class="config-info">
-      <h3>Test Configuration</h3>
-      <div class="config-item">
-        <span class="config-label">Spreadsheet ID:</span>
-        <code>{{ SPREADSHEET_ID }}</code>
+      <div class="flex flex-wrap gap-3">
+        <button mat-stroked-button class="responsive-action" type="button" aria-label="Test token" (click)="testTokenValidity()" [disabled]="!isAuthenticated || isLoading"><svg lucideSearch class="responsive-action__icon mr-2 inline h-4 w-4" aria-hidden="true"></svg><span class="sr-only sm:not-sr-only">Test Token</span></button>
+        <button mat-stroked-button class="responsive-action" type="button" aria-label="Write to sheet" (click)="testWriteToSheet()" [disabled]="!isAuthenticated || isLoading"><svg lucidePenLine class="responsive-action__icon mr-2 inline h-4 w-4" aria-hidden="true"></svg><span class="sr-only sm:not-sr-only">Write to Sheet</span></button>
+        <button mat-stroked-button class="responsive-action" type="button" aria-label="Append to sheet" (click)="testAppendToSheet()" [disabled]="!isAuthenticated || isLoading"><svg lucideListPlus class="responsive-action__icon mr-2 inline h-4 w-4" aria-hidden="true"></svg><span class="sr-only sm:not-sr-only">Append to Sheet</span></button>
+        <button mat-stroked-button class="responsive-action" type="button" aria-label="Batch update sheet" (click)="testBatchUpdateSheet()" [disabled]="!isAuthenticated || isLoading"><svg lucideListChecks class="responsive-action__icon mr-2 inline h-4 w-4" aria-hidden="true"></svg><span class="sr-only sm:not-sr-only">Batch Update</span></button>
+        <button mat-stroked-button class="responsive-action" type="button" aria-label="Read sheet" (click)="testReadFromSheet()" [disabled]="!isAuthenticated || isLoading"><svg lucideBookOpen class="responsive-action__icon mr-2 inline h-4 w-4" aria-hidden="true"></svg><span class="sr-only sm:not-sr-only">Read Sheet</span></button>
+        <button mat-stroked-button class="responsive-action" type="button" aria-label="List Drive files" (click)="testListFilesInFolder()" [disabled]="!isAuthenticated || isLoading"><svg lucideFolderOpen class="responsive-action__icon mr-2 inline h-4 w-4" aria-hidden="true"></svg><span class="sr-only sm:not-sr-only">List Drive Files</span></button>
+        <button mat-stroked-button class="responsive-action" type="button" aria-label="Clear token" (click)="clearTokenAndRelogin()"><svg lucideRefreshCw class="responsive-action__icon mr-2 inline h-4 w-4" aria-hidden="true"></svg><span class="sr-only sm:not-sr-only">Clear Token</span></button>
+        <button mat-stroked-button class="responsive-action" type="button" aria-label="Clear results" (click)="clearResults()"><svg lucideTrash2 class="responsive-action__icon mr-2 inline h-4 w-4" aria-hidden="true"></svg><span class="sr-only sm:not-sr-only">Clear Results</span></button>
       </div>
-      <div class="config-item">
-        <span class="config-label">Sheet Name:</span>
-        <code>{{ SHEET_NAME }}</code>
-      </div>
-      <div class="config-item">
-        <span class="config-label">Folder ID:</span>
-        <code>{{ FOLDER_ID }}</code>
-      </div>
-    </div>
-  </div>
 
-  <!-- Test Results Section -->
-  <div class="results-section">
-    <h3>Test Results</h3>
-    
-    <div *ngIf="testResults.length === 0" class="no-results">
-      <p>No test results yet. Click a test button above to get started.</p>
-    </div>
+      <mat-divider></mat-divider>
+      <dl class="grid gap-3 md:grid-cols-[max-content_1fr]">
+        <dt>Spreadsheet ID</dt><dd><code class="break-all">{{ SPREADSHEET_ID }}</code></dd>
+        <dt>Sheet Name</dt><dd><code>{{ SHEET_NAME }}</code></dd>
+        <dt>Folder ID</dt><dd><code class="break-all">{{ FOLDER_ID }}</code></dd>
+      </dl>
+    </mat-card-content>
+  </mat-card>
 
-    <div *ngFor="let result of testResults" [class]="'result-item result-' + result.type">
-      <div class="result-header">
-        <span class="result-type">
-          <span *ngIf="result.type === 'success'" class="badge badge-success">✓ SUCCESS</span>
-          <span *ngIf="result.type === 'error'" class="badge badge-error">✗ ERROR</span>
-          <span *ngIf="result.type === 'info'" class="badge badge-info">ℹ INFO</span>
-        </span>
-        <span class="result-title">{{ result.title }}</span>
-        <span class="result-time">{{ result.timestamp | date: 'HH:mm:ss' }}</span>
-      </div>
-      <div class="result-message">{{ result.message }}</div>
-    </div>
-  </div>
+  <mat-card appearance="outlined">
+    <mat-card-header><mat-card-title>Test Results</mat-card-title></mat-card-header>
+    <mat-card-content class="space-y-4 p-4 sm:p-6">
+      <p *ngIf="testResults.length === 0">No test results yet.</p>
+      <article *ngFor="let result of testResults" class="space-y-2 border-b pb-4 last:border-b-0">
+        <div class="flex flex-wrap items-center gap-2">
+          <svg *ngIf="result.type === 'success'" lucideCircleCheck class="h-5 w-5" aria-hidden="true"></svg>
+          <svg *ngIf="result.type === 'error'" lucideCircleX class="h-5 w-5" aria-hidden="true"></svg>
+          <svg *ngIf="result.type === 'info'" lucideInfo class="h-5 w-5" aria-hidden="true"></svg>
+          <strong>{{ result.title }}</strong>
+          <time class="ml-auto text-sm">{{ result.timestamp | date: 'HH:mm:ss' }}</time>
+        </div>
+        <p class="whitespace-pre-wrap">{{ result.message }}</p>
+      </article>
+    </mat-card-content>
+  </mat-card>
 
-  <!-- Sheet Data Display -->
-  <div *ngIf="sheetData && sheetData.length > 0" class="data-section">
-    <h3>📊 Sheet Data</h3>
-    <div class="table-container">
-      <table class="data-table">
-        <thead>
-          <tr>
-            <th *ngFor="let header of sheetData[0]">{{ header }}</th>
-          </tr>
-        </thead>
-        <tbody>
-          <tr *ngFor="let row of sheetData.slice(1)">
-            <td *ngFor="let cell of row">{{ cell || '-' }}</td>
-          </tr>
-        </tbody>
+  <mat-card *ngIf="sheetData && sheetData.length > 0" appearance="outlined">
+    <mat-card-header><mat-card-title>Sheet Data</mat-card-title></mat-card-header>
+    <mat-card-content class="overflow-x-auto p-4 sm:p-6">
+      <table class="w-full border-collapse text-left">
+        <thead><tr><th *ngFor="let header of sheetData[0]" class="border p-2">{{ header }}</th></tr></thead>
+        <tbody><tr *ngFor="let row of sheetData.slice(1)"><td *ngFor="let cell of row" class="border p-2">{{ cell || '-' }}</td></tr></tbody>
       </table>
-    </div>
-  </div>
+    </mat-card-content>
+  </mat-card>
 
-  <!-- Drive Files Display -->
-  <div *ngIf="driveFiles && driveFiles.length > 0" class="data-section">
-    <h3>📁 Files in Google Drive Folder</h3>
-    <p class="files-count">Total files: {{ driveFiles.length }}</p>
-    <div class="files-grid">
-      <div *ngFor="let file of driveFiles" class="file-card">
-        <div class="file-icon">
-          <span *ngIf="file.mimeType.includes('folder')">📁</span>
-          <span *ngIf="file.mimeType.includes('spreadsheet')">📊</span>
-          <span *ngIf="file.mimeType.includes('document')">📄</span>
-          <span *ngIf="!file.mimeType.includes('folder') && !file.mimeType.includes('spreadsheet') && !file.mimeType.includes('document')">📎</span>
-        </div>
-        <div class="file-details">
-          <div class="file-name">{{ file.name }}</div>
-          <div class="file-meta">
-            <span class="file-type">{{ file.mimeType }}</span>
-            <span class="file-size" *ngIf="file.size">{{ formatFileSize(file.size) }}</span>
-          </div>
-          <div class="file-timestamps">
-            <span *ngIf="file.createdTime" class="file-date">Created: {{ formatDate(file.createdTime) }}</span>
-            <span *ngIf="file.modifiedTime" class="file-date">Modified: {{ formatDate(file.modifiedTime) }}</span>
-          </div>
-          <a *ngIf="file.webViewLink" [href]="file.webViewLink" target="_blank" class="file-link">
-            Open in Drive →
+  <section *ngIf="driveFiles && driveFiles.length > 0" class="space-y-4">
+    <h2 class="text-xl">Files in Google Drive Folder ({{ driveFiles.length }})</h2>
+    <div class="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+      <mat-card *ngFor="let file of driveFiles" appearance="outlined">
+        <mat-card-header>
+          <svg mat-card-avatar *ngIf="file.mimeType.includes('folder')" lucideFolderOpen class="h-8 w-8" aria-hidden="true"></svg>
+          <svg mat-card-avatar *ngIf="file.mimeType.includes('spreadsheet')" lucideFileSpreadsheet class="h-8 w-8" aria-hidden="true"></svg>
+          <svg mat-card-avatar *ngIf="file.mimeType.includes('document')" lucideFileText class="h-8 w-8" aria-hidden="true"></svg>
+          <svg mat-card-avatar *ngIf="!file.mimeType.includes('folder') && !file.mimeType.includes('spreadsheet') && !file.mimeType.includes('document')" lucidePaperclip class="h-8 w-8" aria-hidden="true"></svg>
+          <mat-card-title>{{ file.name }}</mat-card-title>
+          <mat-card-subtitle>{{ file.mimeType }}</mat-card-subtitle>
+        </mat-card-header>
+        <mat-card-content class="space-y-1 pt-4 text-sm">
+          <p *ngIf="file.size">Size: {{ formatFileSize(file.size) }}</p>
+          <p *ngIf="file.createdTime">Created: {{ formatDate(file.createdTime) }}</p>
+          <p *ngIf="file.modifiedTime">Modified: {{ formatDate(file.modifiedTime) }}</p>
+        </mat-card-content>
+        <mat-card-actions *ngIf="file.webViewLink">
+          <a mat-button class="responsive-action" [href]="file.webViewLink" target="_blank" rel="noopener" [attr.aria-label]="'Open ' + file.name + ' in Drive'">
+            <svg lucideExternalLink class="responsive-action__icon mr-2 inline h-4 w-4" aria-hidden="true"></svg><span class="sr-only sm:not-sr-only">Open in Drive</span>
           </a>
-        </div>
-      </div>
+        </mat-card-actions>
+      </mat-card>
     </div>
-  </div>
+  </section>
 </div>

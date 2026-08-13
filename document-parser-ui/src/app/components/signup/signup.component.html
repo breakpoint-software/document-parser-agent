@@ -1,110 +1,58 @@
-<div class="signup-container">
-  <div class="signup-card">
-    <!-- Header -->
-    <div class="signup-header">
-      <h1>Document Parser</h1>
-      <p>Sign up or sign in to get started</p>
-    </div>
-
-    <!-- Loading State -->
-    <div *ngIf="isLoading" class="loading">
-      <div class="spinner"></div>
-      <p>Processing...</p>
-    </div>
-
-    <!-- Error Message -->
-    <div *ngIf="errorMessage" class="error-message">
-      <strong>Error:</strong> {{ errorMessage }}
-    </div>
-
-    <!-- Success Message -->
-    <div *ngIf="successMessage" class="success-message">
-      {{ successMessage }}
-    </div>
-
-    <!-- User Profile Display -->
-    <div *ngIf="currentUser && !showTenantForm" class="user-profile">
-      <div class="profile-header">
-        <img *ngIf="currentUser.photoURL" [src]="currentUser.photoURL" alt="Profile" class="profile-picture">
-        <div class="profile-info">
-          <h2>{{ currentUser.displayName || 'User' }}</h2>
-          <p>{{ currentUser.email }}</p>
-        </div>
-      </div>
-      <button (click)="logout()" class="btn btn-logout" [disabled]="isLoading">
-        Sign Out
-      </button>
-    </div>
-
-    <!-- Tenant Creation Form -->
-    <div *ngIf="currentUser && showTenantForm" class="tenant-form-container">
-      <div class="profile-header" style="margin-bottom: 20px;">
-        <img *ngIf="currentUser.photoURL" [src]="currentUser.photoURL" alt="Profile" class="profile-picture">
-        <div class="profile-info">
-          <h2>{{ currentUser.displayName || 'User' }}</h2>
-          <p>{{ currentUser.email }}</p>
-        </div>
-      </div>
-
-      <h3>Create Your Workspace</h3>
-      <p class="form-subtitle">Give your workspace a name to get started</p>
-
-      <div class="form-group">
-        <label for="tenantName">Workspace Name</label>
-        <input 
-          id="tenantName"
-          type="text" 
-          [(ngModel)]="tenantName"
-          placeholder="e.g., My Organization, Team Alpha"
-          class="form-input"
-          [disabled]="isLoading"
-        >
-      </div>
-
-      <button 
-        (click)="createTenantAndAccount()"
-        class="btn btn-primary"
-        [disabled]="isLoading || !isTenantNameValid"
-      >
-        <span *ngIf="!isLoading">Create Workspace</span>
-        <span *ngIf="isLoading">Creating...</span>
-      </button>
-
-      <button 
-        (click)="logout()"
-        class="btn btn-secondary"
-        [disabled]="isLoading"
-      >
-        Sign Out
-      </button>
-    </div>
-
-    <!-- Authentication Buttons -->
-    <div *ngIf="!currentUser" class="auth-buttons">
-      <button 
-        (click)="signupWithGoogle()" 
-        class="btn btn-google"
-        [disabled]="isLoading"
-      >
-        <span class="google-icon">🔐</span>
-        Sign Up with Google
-      </button>
-
-      <div class="divider">OR</div>
-
-      <button 
-        (click)="signinWithGoogle()" 
-        class="btn btn-google-signin"
-        [disabled]="isLoading"
-      >
-        <span class="google-icon">🔑</span>
-        Sign In with Google
-      </button>
-    </div>
-
-    <!-- Footer -->
-    <div class="signup-footer">
-      <p>Secure authentication powered by Google & Firebase</p>
-    </div>
+<div class="mx-auto max-w-xl space-y-6">
+<header class="flex items-center gap-4">
+  <img src="assets/docparser-mark.svg" alt="" class="h-14 w-14 shrink-0">
+  <div class="min-w-0">
+    <h1 class="text-2xl font-semibold leading-tight sm:text-3xl">Document Parser</h1>
+    <p>Manage your document processing workspace.</p>
   </div>
+</header>
+<mat-card appearance="outlined">
+  <mat-card-header>
+    <mat-card-title>Continue to your workspace</mat-card-title>
+    <mat-card-subtitle>Use your Google account to get started</mat-card-subtitle>
+  </mat-card-header>
+
+  <mat-card-content class="space-y-6 p-4 sm:p-6">
+    <div *ngIf="isLoading" class="flex items-center gap-3" role="status">
+      <mat-spinner diameter="24"></mat-spinner>
+      <span>Processing...</span>
+    </div>
+
+    <div *ngIf="errorMessage" class="flex items-start gap-2" role="alert">
+      <svg lucideCircleAlert class="h-5 w-5 shrink-0" aria-hidden="true"></svg>
+      <span>{{ errorMessage }}</span>
+    </div>
+
+    <div *ngIf="successMessage" class="flex items-start gap-2" role="status">
+      <svg lucideCircleCheck class="h-5 w-5 shrink-0" aria-hidden="true"></svg>
+      <span>{{ successMessage }}</span>
+    </div>
+
+    <section *ngIf="currentUser" class="space-y-4">
+      <div class="flex items-center gap-4">
+        <img *ngIf="currentUser.photoURL" [src]="currentUser.photoURL" alt="Profile" class="h-14 w-14 rounded-full">
+        <div class="min-w-0">
+          <h2 class="truncate text-xl">{{ currentUser.displayName || 'User' }}</h2>
+          <p class="truncate">{{ currentUser.email }}</p>
+        </div>
+      </div>
+      <button mat-stroked-button class="responsive-action" type="button" aria-label="Sign out" (click)="logout()" [disabled]="isLoading">
+        <svg lucideLogOut class="responsive-action__icon mr-2 inline h-4 w-4" aria-hidden="true"></svg>
+        <span class="sr-only sm:not-sr-only">Sign Out</span>
+      </button>
+    </section>
+
+    <section *ngIf="!currentUser" class="space-y-4">
+      <button mat-flat-button type="button" class="responsive-action w-full" aria-label="Continue with Google" (click)="continueWithGoogle()" [disabled]="isLoading">
+        <img src="assets/google-g.svg" alt="" class="responsive-action__icon mr-2 inline h-4 w-4">
+        <span class="sr-only sm:not-sr-only">Continue with Google</span>
+      </button>
+    </section>
+  </mat-card-content>
+
+  <mat-card-footer class="flex items-center justify-center gap-2 p-4 text-sm">
+    <svg lucideShieldCheck class="h-4 w-4" aria-hidden="true"></svg>
+    Secure authentication powered by Google and Firebase
+  </mat-card-footer>
+</mat-card>
 </div>

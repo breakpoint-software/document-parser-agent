@@ -6,7 +6,7 @@ import { BACKEND_API_CONFIG } from '../config/firebase.config';
 
 interface UserAccountApiResponse {
   userAccount: UserAccount;
-  tenant?: UserAccountResponse['tenant'];
+  workspace?: UserAccountResponse['workspace'];
 }
 
 interface UserAccountsApiResponse {
@@ -22,11 +22,11 @@ export class UserAccountService {
   constructor(private http: HttpClient) {}
 
   /**
-   * Create a new user account with associated tenant
+  * Create a new user account with associated workspace
    */
   createUserAccount(userData: UserAccountCreateRequest): Observable<UserAccountResponse> {
     return this.http.post<UserAccountApiResponse>(this.apiUrl, userData).pipe(
-      map(response => ({ ...response.userAccount, tenant: response.tenant }))
+      map(response => ({ ...response.userAccount, workspace: response.workspace }))
     );
   }
 
@@ -35,7 +35,7 @@ export class UserAccountService {
    */
   getUserAccount(accountId: string): Observable<UserAccountResponse> {
     return this.http.get<UserAccountApiResponse>(`${this.apiUrl}/${accountId}`).pipe(
-      map(response => ({ ...response.userAccount, tenant: response.tenant }))
+      map(response => ({ ...response.userAccount, workspace: response.workspace }))
     );
   }
 
@@ -44,7 +44,7 @@ export class UserAccountService {
    */
   getUserAccountByUid(uid: string): Observable<UserAccountResponse> {
     return this.http.get<UserAccountApiResponse>(`${this.apiUrl}/uid/${uid}`).pipe(
-      map(response => ({ ...response.userAccount, tenant: response.tenant }))
+      map(response => ({ ...response.userAccount, workspace: response.workspace }))
     );
   }
 
@@ -53,15 +53,15 @@ export class UserAccountService {
    */
   updateUserAccount(accountId: string, userData: Partial<UserAccount>): Observable<UserAccountResponse> {
     return this.http.put<UserAccountApiResponse>(`${this.apiUrl}/${accountId}`, userData).pipe(
-      map(response => ({ ...response.userAccount, tenant: response.tenant }))
+      map(response => ({ ...response.userAccount, workspace: response.workspace }))
     );
   }
 
   /**
-   * Get all user accounts for a tenant
+   * Get all user accounts for a workspace
    */
-  getTenantUsers(tenantId: string): Observable<UserAccountResponse[]> {
-    return this.http.get<UserAccountsApiResponse>(`${this.apiUrl}/tenant/${tenantId}`).pipe(
+  getWorkspaceUsers(workspaceId: string): Observable<UserAccountResponse[]> {
+    return this.http.get<UserAccountsApiResponse>(`${this.apiUrl}/workspace/${workspaceId}`).pipe(
       map(response => response.userAccounts)
     );
   }

@@ -30,9 +30,7 @@ export class GoogleDriveSharingService {
   constructor(
     private http: HttpClient,
     private authService: GoogleAuthService
-  ) {
-    console.log('GoogleDriveSharingService initialized with Service Account:', this.SERVICE_ACCOUNT_EMAIL);
-  }
+  ) {}
 
   /**
    * Step 4: Share item with Service Account
@@ -62,13 +60,11 @@ export class GoogleDriveSharingService {
     };
 
     const url = `${this.DRIVE_API_URL}/files/${fileId}/permissions?supportsAllDrives=true`;
-    console.log(`🔄 Sharing file "${fileName}" with Service Account...`);
 
     return new Observable(observer => {
       this.http.post<SharePermission>(url, permission, { headers })
         .subscribe(
           (response) => {
-            console.log(`✅ File "${fileName}" shared successfully`);
             const result: SharingResult = {
               fileId,
               fileName,

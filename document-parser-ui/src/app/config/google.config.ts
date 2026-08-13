@@ -1,25 +1,9 @@
-/**
- * Google OAuth Configuration
- * 
- * Update these values with your Google Cloud Console credentials:
- * 1. Go to: https://console.cloud.google.com/
- * 2. Create a new project or select existing one
- * 3. Enable APIs: Google Drive API, Google Picker API
- * 4. Create OAuth 2.0 Credentials (Desktop/Web Application)
- * 5. Set Authorized JavaScript origins: http://localhost:4200
- * 6. Set Authorized redirect URIs: http://localhost:4200/auth-callback
- */
+import { RUNTIME_CONFIG } from './runtime.config';
 
 export const GOOGLE_CONFIG = {
-  // OAuth Client ID from Google Cloud Console
-  GOOGLE_CLIENT_ID: '1044306919042-96546hj5flikpto39hopt6f8d2hbgp93.apps.googleusercontent.com',
-
-  // Google Picker API Key
-  GOOGLE_PICKER_API_KEY: 'AIzaSyCiSHNqqTJeQ9bozaec65Qgx7CzFzWvBVk',
-
-  // Service Account Email (for sharing files)
-  // Create a Service Account in Google Cloud Console
-  SERVICE_ACCOUNT_EMAIL: 'workbookupdate@dragonbotdb-fdda7.iam.gserviceaccount.com',
+  GOOGLE_CLIENT_ID: RUNTIME_CONFIG.googleClientId,
+  GOOGLE_PICKER_API_KEY: RUNTIME_CONFIG.googlePickerApiKey,
+  SERVICE_ACCOUNT_EMAIL: RUNTIME_CONFIG.googleServiceAccountEmail,
 
   // Scopes required for this app
   // Using drive.file keeps access scoped to files selected through the app.
@@ -46,8 +30,7 @@ export const GOOGLE_CONFIG = {
  * for secure token storage and exchange
  */
 export const BACKEND_CONFIG = {
-  // Backend API base URL
-  API_BASE_URL: 'http://localhost:3000/api',
+  API_BASE_URL: RUNTIME_CONFIG.apiBaseUrl,
 
   // Token storage endpoint (POST) - for securely storing refresh tokens
   TOKEN_STORAGE_ENDPOINT: '/auth/store-token',

@@ -1,3 +1,9 @@
+export interface RuleCondition {
+	field: string;
+	operator: string;
+	value: string | number | boolean | Array<string | number> | null;
+}
+
 export interface Rule {
 	rule_id: string;
 	rule_name: string;
@@ -10,6 +16,13 @@ export interface Rule {
 	sheet_tab_name: string;
 	schema_id?: string;
 	is_enabled: boolean;
+	priority?: number;
+	condition_mode?: 'all' | 'any';
+	conditions?: RuleCondition[];
+	actions?: {
+		move_to_folder: boolean;
+		append_to_sheet: boolean;
+	};
 	created_at?: Date;
 	updated_at?: Date;
 }

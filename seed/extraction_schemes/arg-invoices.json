@@ -1,0 +1,519 @@
+{
+  "name": "purchase_receipt_extraction",
+  "version": 4,
+  "is_enabled": true,
+  "strict": true,
+  "parsing_prompt": "You are an expert invoice and receipt extraction engine.\n\nYour task is to extract structured information from invoices, receipts, fiscal tickets, credit notes, debit notes, and similar accounting documents.\n\nGENERAL RULES\n\n- Return only the JSON object matching the provided schema.\n- Never invent, guess, estimate, or infer a value that is not supported by the document.\n- If a field cannot be determined with reasonable certainty, return null.\n- Read the entire document before extracting any values.\n- Identify the document header, issuer/supplier section, buyer/customer section, and totals section before producing the final JSON.\n- Ignore logos, QR codes, signatures, stamps, handwritten notes, payment instructions, advertisements, and unrelated text unless they explicitly contain one of the requested fields.\n- Preserve identifiers exactly as printed, including leading zeros and separators, unless the field description explicitly requires normalization.\n- Monetary values must be returned as JSON numbers, never strings.\n- Do not add markdown, explanations, reasoning, or extra keys.\n\nDOCUMENT IDENTIFICATION\n\nDetermine the document type from the document itself.\n\nSupported values:\n- invoice\n- receipt\n- purchase_receipt\n- credit_note\n- debit_note\n- unknown\n\nIf the document type cannot be determined, return \"unknown\", but still extract any fields that can be identified reliably.\n\nISSUER / SUPPLIER IDENTIFICATION\n\nThe supplier is the person or organization that ISSUED the document.\n\nThe buyer/customer/recipient is NEVER the supplier.\n\nWhen multiple names, addresses, or tax IDs appear, first identify the issuer section and the buyer section.\n\nSupplier information is normally associated with labels or areas such as:\n- Razón Social\n- Emisor\n- Issuer\n- Supplier\n- Vendor\n- Vendedor\n- CUIT of the issuer\n- Company information in the document header\n- Fiscal information belonging to the issuer\n\nDo NOT use information associated with:\n- Cliente\n- Customer\n- Buyer\n- Purchaser\n- Recipient\n- Destinatario\n- Receptor\n- Comprador\n- Apellido y Nombre / Razón Social when it belongs to the customer section\n- Bill To\n- Ship To\n\nSupplier extraction strategy:\n1. Locate the issuer/supplier section.\n2. Locate the buyer/customer section.\n3. Associate supplier_name and supplier_tax_id only with the issuer.\n4. Never copy buyer information into supplier fields.\n5. If two candidates remain equally plausible, return null rather than guessing.\n\nBUYER / CUSTOMER IDENTIFICATION\n\nThe buyer is the person or organization purchasing or receiving the goods/services.\n\nThe buyer is NOT the issuer/supplier.\n\nExtract buyer information only when it is explicitly present.\n\nBuyer information can appear under:\n- Cliente\n- Customer\n- Buyer\n- Purchaser\n- Comprador\n- Destinatario\n- Receptor\n- Apellido y Nombre / Razón Social\n- Bill To\n- Customer information\n- Buyer information\n\nFor Argentine documents, a common structure is:\n- Issuer/supplier information in the upper/header section.\n- Buyer/customer information in a separate section, often containing \"Apellido y Nombre / Razón Social\" and a second CUIT.\n\nIf buyer information is absent, return null for buyer fields.\n\nNever assume that the buyer is the person or company that paid unless the document explicitly identifies them as the buyer/customer.\n\nDATES\n\nExtract:\n- invoice_date: issue/emission date of the document.\n- due_date: payment due date, when explicitly present.\n- invoice_time: invoice or ticket time, when explicitly printed.\n\nReturn dates in ISO 8601 format:\nYYYY-MM-DD\n\nReturn time in:\nHH:mm\n\nDo not use CAE expiration date, payment date, accounting period dates, or other unrelated dates as invoice_date or due_date.\n\nSUPPLIER\n\nExtract:\n- supplier_name: legal name of the issuer.\n- supplier_tax_id: tax identifier of the issuer, such as CUIT, CUIL, VAT ID, Tax ID, RFC, CIF, NIF, etc.\n\nBUYER\n\nExtract:\n- buyer_name: legal or printed name of the buyer/customer.\n- buyer_tax_id: tax identifier of the buyer/customer.\n- buyer_address: buyer/customer address when explicitly printed.\n\nNever use buyer values for supplier fields and never use supplier values for buyer fields.\n\nCURRENCY\n\nReturn the ISO 4217 currency code.\n\nExamples:\n- ARS\n- USD\n- EUR\n- BRL\n- UYU\n- CLP\n- GBP\n\nIf currency is not explicitly stated or cannot be determined reliably, return null.\n\nAMOUNTS\n\nExtract:\n- subtotal\n- taxes\n- total\n\nRules:\n- subtotal is the amount before VAT/taxes.\n- taxes is the total VAT/IVA/GST amount.\n- If multiple VAT/IVA rates are explicitly shown, sum their VAT amounts.\n- Do not include unrelated withholdings, perceptions, municipal taxes, or other charges in taxes unless they are explicitly part of VAT/IVA.\n- total is the final document total/payable amount.\n- Prefer the explicitly printed subtotal and total values.\n- Do not calculate values unless the document provides sufficient explicit information to derive them.\n\nARGENTINA / ARCA / AFIP\n\nFor Argentine documents:\n- The issuer is the person/company issuing the comprobante.\n- The buyer is normally identified in a separate customer section.\n- \"Punto de Venta\" and \"Comp. Nro.\" identify the document number components.\n- Preserve leading zeros in point_of_sale and invoice_number.\n- \"COD.\" or \"Código de Comprobante\" is the ARCA/AFIP document type code.\n- \"CAE\" is an authorization code and must not be confused with the invoice number.\n- \"Fecha de Vto. de CAE\" is not the payment due date.\n- The buyer's CUIT must never be assigned to supplier_tax_id.\n- The supplier's CUIT must never be assigned to buyer_tax_id.\n\nDOCUMENT NUMBER\n\nWhen both \"Punto de Venta\" and \"Comp. Nro.\" are present:\n- Extract point_of_sale separately.\n- Extract invoice_number separately.\n- Preserve leading zeros.\n- Do not concatenate them into invoice_number.\n\nIf a ticket has only a single printed transaction/ticket number, use that value as invoice_number.\n\nIDENTITY-RELATED FIELDS\n\nExtract all document identity fields exactly as printed:\n- document_code\n- point_of_sale\n- invoice_number\n- invoice_letter\n- terminal_id\n\nDo not generate document_id in the model response. The application will generate the deterministic document identity after extraction.\n\nQUALITY CHECK\n\nBefore producing the final JSON, internally verify:\n- supplier_name belongs to the issuer.\n- supplier_tax_id belongs to the issuer.\n- buyer_name belongs to the buyer/customer, if present.\n- buyer_tax_id belongs to the buyer/customer, if present.\n- invoice_number belongs to the document itself.\n- point_of_sale belongs to the document itself.\n- total comes from the totals section.\n- due_date is not confused with CAE expiration date.\n- supplier and buyer have not been swapped.\n\nIf a field is ambiguous after verification, return null for that field.\n\nReturn only the JSON defined by the provided schema.",
+  "schema": {
+    "type": "object",
+    "additionalProperties": false,
+    "properties": {
+      "source_file": {
+        "type": "string",
+        "description": "Original document file name."
+      },
+      "document_type": {
+        "type": "string",
+        "enum": [
+          "invoice",
+          "receipt",
+          "purchase_receipt",
+          "credit_note",
+          "debit_note",
+          "unknown"
+        ],
+        "description": "Type of accounting document."
+      },
+      "country": {
+        "type": "string",
+        "enum": [
+          "AR"
+        ],
+        "description": "ISO 3166-1 alpha-2 issuer country."
+      },
+      "invoice_date": {
+        "type": [
+          "string",
+          "null"
+        ],
+        "description": "Issue/emission date of the document in ISO 8601 format (YYYY-MM-DD)."
+      },
+      "invoice_time": {
+        "type": [
+          "string",
+          "null"
+        ],
+        "description": "Invoice or ticket time in HH:mm format when explicitly printed."
+      },
+      "due_date": {
+        "type": [
+          "string",
+          "null"
+        ],
+        "description": "Payment due date in ISO 8601 format. Do not use CAE expiration date."
+      },
+      "supplier_tax_id": {
+        "type": [
+          "string",
+          "null"
+        ],
+        "description": "Tax identifier of the document issuer/supplier. Never the buyer or customer."
+      },
+      "supplier_name": {
+        "type": [
+          "string",
+          "null"
+        ],
+        "description": "Legal or printed name of the document issuer/supplier. Never the buyer or customer."
+      },
+      "buyer_tax_id": {
+        "type": [
+          "string",
+          "null"
+        ],
+        "description": "Tax identifier of the buyer/customer/recipient. Never the supplier."
+      },
+      "buyer_name": {
+        "type": [
+          "string",
+          "null"
+        ],
+        "description": "Legal or printed name of the buyer/customer/recipient. Never the supplier."
+      },
+      "buyer_address": {
+        "type": [
+          "string",
+          "null"
+        ],
+        "description": "Buyer/customer address exactly as printed when explicitly present."
+      },
+      "currency": {
+        "type": [
+          "string",
+          "null"
+        ],
+        "description": "ISO 4217 currency code such as ARS, USD, EUR, BRL, UYU, or CLP."
+      },
+      "subtotal": {
+        "type": [
+          "number",
+          "null"
+        ],
+        "description": "Subtotal before VAT/IVA and taxes."
+      },
+      "taxes": {
+        "type": [
+          "number",
+          "null"
+        ],
+        "description": "Total VAT/IVA/GST amount. If multiple VAT rates are explicitly shown, return their sum."
+      },
+      "total": {
+        "type": [
+          "number",
+          "null"
+        ],
+        "description": "Final document total or payable amount."
+      },
+      "invoice_number": {
+        "type": [
+          "string",
+          "null"
+        ],
+        "description": "Invoice, receipt, or ticket number exactly as printed. Preserve leading zeros."
+      },
+      "document_code": {
+        "type": [
+          "string",
+          "null"
+        ],
+        "description": "ARCA/AFIP numeric comprobante type code exactly as printed."
+      },
+      "point_of_sale": {
+        "type": [
+          "string",
+          "null"
+        ],
+        "description": "Point of sale number exactly as printed. Preserve leading zeros."
+      },
+      "terminal_id": {
+        "type": [
+          "string",
+          "null"
+        ],
+        "description": "Fiscal terminal, POS terminal, cash register, or terminal identifier when explicitly printed."
+      },
+      "invoice_letter": {
+        "type": [
+          "string",
+          "null"
+        ],
+        "enum": [
+          "A",
+          "B",
+          "C",
+          "M",
+          "E",
+          null
+        ],
+        "description": "Argentine invoice/comprobante letter."
+      },
+      "confidence": {
+        "type": [
+          "number",
+          "null"
+        ],
+        "minimum": 0,
+        "maximum": 1,
+        "description": "Model-estimated overall extraction confidence between 0 and 1."
+      }
+    },
+    "required": [
+      "source_file",
+      "document_type",
+      "country",
+      "invoice_date",
+      "invoice_time",
+      "due_date",
+      "supplier_tax_id",
+      "supplier_name",
+      "buyer_tax_id",
+      "buyer_name",
+      "buyer_address",
+      "currency",
+      "subtotal",
+      "taxes",
+      "total",
+      "invoice_number",
+      "document_code",
+      "point_of_sale",
+      "terminal_id",
+      "invoice_letter",
+      "confidence"
+    ]
+  },
+  "mapping": {
+    "canonical_fields": {
+      "country": "country",
+      "document_type": "document_type",
+      "invoice_date": "invoice_date",
+      "invoice_time": "invoice_time",
+      "due_date": "due_date",
+      "supplier_tax_id": "supplier_tax_id",
+      "supplier_name": "supplier_name",
+      "buyer_tax_id": "buyer_tax_id",
+      "buyer_name": "buyer_name",
+      "buyer_address": "buyer_address",
+      "currency": "currency",
+      "subtotal": "subtotal",
+      "taxes": "taxes",
+      "total": "total",
+      "document_number": "invoice_number",
+      "document_code": "document_code",
+      "point_of_sale": "point_of_sale",
+      "terminal_id": "terminal_id",
+      "document_series": "invoice_letter"
+    },
+    "argentina": {
+      "supplier_tax_id": [
+        "CUIT",
+        "CUIT del emisor",
+        "CUIT proveedor"
+      ],
+      "supplier_name": [
+        "Razón Social",
+        "Emisor"
+      ],
+      "buyer_tax_id": [
+        "CUIT cliente",
+        "CUIT comprador",
+        "CUIT receptor"
+      ],
+      "buyer_name": [
+        "Apellido y Nombre / Razón Social",
+        "Cliente",
+        "Comprador",
+        "Destinatario"
+      ],
+      "document_code": [
+        "COD.",
+        "Código de Comprobante"
+      ],
+      "point_of_sale": [
+        "Punto de Venta"
+      ],
+      "invoice_number": [
+        "Comp. Nro.",
+        "Número de comprobante",
+        "Nro. de comprobante"
+      ],
+      "invoice_letter": [
+        "A",
+        "B",
+        "C",
+        "M",
+        "E"
+      ],
+      "terminal_id": [
+        "Terminal",
+        "Terminal ID",
+        "Caja",
+        "Nro. de caja",
+        "Puesto"
+      ],
+      "buyer_address": [
+        "Domicilio Comercial",
+        "Domicilio",
+        "Dirección"
+      ]
+    }
+  },
+  "normalization": {
+    "country": {
+      "normalizer": "uppercase"
+    },
+    "supplier_tax_id": {
+      "normalizer": "digits"
+    },
+    "buyer_tax_id": {
+      "normalizer": "digits"
+    },
+    "document_code": {
+      "normalizer": "digits",
+      "width": 3
+    },
+    "point_of_sale": {
+      "normalizer": "digits",
+      "preserve_leading_zeros": true,
+      "default_width": 5
+    },
+    "invoice_number": {
+      "normalizer": "digits",
+      "preserve_leading_zeros": true,
+      "default_width": 8
+    },
+    "invoice_date": {
+      "normalizer": "date",
+      "format": "YYYY-MM-DD"
+    },
+    "due_date": {
+      "normalizer": "date",
+      "format": "YYYY-MM-DD"
+    },
+    "invoice_time": {
+      "normalizer": "time",
+      "format": "HH:mm"
+    },
+    "currency": {
+      "normalizer": "uppercase",
+      "format": "ISO-4217"
+    },
+    "supplier_name": {
+      "normalizer": "text"
+    },
+    "buyer_name": {
+      "normalizer": "text"
+    },
+    "buyer_address": {
+      "normalizer": "text"
+    },
+    "subtotal": {
+      "normalizer": "decimal",
+      "scale": 2
+    },
+    "taxes": {
+      "normalizer": "decimal",
+      "scale": 2
+    },
+    "total": {
+      "normalizer": "decimal",
+      "scale": 2
+    }
+  },
+  "validation": {
+    "rules": [
+      {
+        "name": "supplier_tax_id_argentina",
+        "field": "supplier_tax_id",
+        "when": {
+          "country": "AR"
+        },
+        "pattern": "^\\d{11}$"
+      },
+      {
+        "name": "buyer_tax_id_argentina",
+        "field": "buyer_tax_id",
+        "when": {
+          "country": "AR"
+        },
+        "pattern": "^\\d{11}$"
+      },
+      {
+        "name": "total_consistency",
+        "type": "amount_consistency",
+        "fields": [
+          "subtotal",
+          "taxes",
+          "total"
+        ],
+        "tolerance": 0.01
+      },
+      {
+        "name": "point_of_sale_digits",
+        "field": "point_of_sale",
+        "pattern": "^\\d+$"
+      },
+      {
+        "name": "invoice_number_digits",
+        "field": "invoice_number",
+        "pattern": "^\\d+$"
+      }
+    ]
+  },
+  "identity": {
+    "version": 1,
+    "separator": "|",
+    "generated_by": "application",
+    "strategies": [
+      {
+        "name": "arca_invoice",
+        "strength": "strong",
+        "required": [
+          "country",
+          "supplier_tax_id",
+          "document_code",
+          "point_of_sale",
+          "invoice_number"
+        ],
+        "components": [
+          {
+            "field": "country",
+            "normalizer": "uppercase"
+          },
+          {
+            "field": "supplier_tax_id",
+            "normalizer": "digits"
+          },
+          {
+            "field": "document_code",
+            "normalizer": "digits",
+            "width": 3
+          },
+          {
+            "field": "point_of_sale",
+            "normalizer": "digits",
+            "width": 5
+          },
+          {
+            "field": "invoice_number",
+            "normalizer": "digits",
+            "width": 8
+          }
+        ]
+      },
+      {
+        "name": "fiscal_ticket",
+        "strength": "strong",
+        "required": [
+          "country",
+          "supplier_tax_id",
+          "point_of_sale",
+          "invoice_number"
+        ],
+        "components": [
+          {
+            "field": "country",
+            "normalizer": "uppercase"
+          },
+          {
+            "field": "supplier_tax_id",
+            "normalizer": "digits"
+          },
+          {
+            "field": "point_of_sale",
+            "normalizer": "digits",
+            "width": 5
+          },
+          {
+            "field": "invoice_number",
+            "normalizer": "digits",
+            "width": 8
+          }
+        ]
+      },
+      {
+        "name": "tax_id_date_total",
+        "strength": "weak",
+        "required": [
+          "country",
+          "supplier_tax_id",
+          "invoice_date",
+          "total",
+          "currency"
+        ],
+        "components": [
+          {
+            "field": "country",
+            "normalizer": "uppercase"
+          },
+          {
+            "field": "supplier_tax_id",
+            "normalizer": "digits"
+          },
+          {
+            "field": "invoice_date",
+            "normalizer": "date"
+          },
+          {
+            "field": "total",
+            "normalizer": "decimal",
+            "scale": 2
+          },
+          {
+            "field": "currency",
+            "normalizer": "uppercase"
+          }
+        ]
+      },
+      {
+        "name": "supplier_date_time_total",
+        "strength": "weak",
+        "required": [
+          "country",
+          "supplier_name",
+          "invoice_date",
+          "invoice_time",
+          "total",
+          "currency"
+        ],
+        "components": [
+          {
+            "field": "country",
+            "normalizer": "uppercase"
+          },
+          {
+            "field": "supplier_name",
+            "normalizer": "text"
+          },
+          {
+            "field": "invoice_date",
+            "normalizer": "date"
+          },
+          {
+            "field": "invoice_time",
+            "normalizer": "time"
+          },
+          {
+            "field": "total",
+            "normalizer": "decimal",
+            "scale": 2
+          },
+          {
+            "field": "currency",
+            "normalizer": "uppercase"
+          }
+        ]
+      }
+    ]
+  }
+}

@@ -1,438 +1,236 @@
-<div class="unified-container" [class.rules-page]="isRulesPage">
-  <!-- Loading State -->
-  <div *ngIf="isLoading" class="loading-overlay">
-    <div class="spinner"></div>
-    <p>Loading...</p>
-  </div>
+<div class="mx-auto max-w-7xl space-y-5 sm:space-y-6">
+  <header *ngIf="!embedded">
+    <h1 class="text-2xl font-semibold leading-tight sm:text-3xl">Rules Manager</h1>
+  </header>
 
-  <!-- Error Message -->
-  <div *ngIf="errorMessage" class="error-message">
-    <strong>Error:</strong> {{ errorMessage }}
-    <button (click)="errorMessage = ''" class="close-btn">×</button>
-  </div>
+  <app-status-banner *ngIf="isLoading" type="loading" message="Loading..." [dismissible]="false" />
+  <app-status-banner *ngIf="errorMessage" type="error" [message]="errorMessage" (dismissed)="errorMessage = ''" />
+  <app-status-banner *ngIf="successMessage" type="success" [message]="successMessage" (dismissed)="successMessage = ''" />
 
-  <!-- Success Message -->
-  <div *ngIf="successMessage" class="success-message">
-    {{ successMessage }}
-  </div>
+  <mat-card appearance="outlined">
+    <mat-card-header class="px-4 pt-5 sm:px-6 sm:pt-6">
+      <mat-card-title class="text-xl leading-7">Rules</mat-card-title>
+    </mat-card-header>
 
-  <!-- Main Content Grid -->
-  <div class="content-grid" [class.rules-page-grid]="isRulesPage">
-    <!-- Left Panel: Tenant Dashboard Info -->
-    <div *ngIf="!isRulesPage" class="panel left-panel">
-      <div class="panel-header">
-        <h1>Document Parser</h1>
-        <p>Workspace Information</p>
-      </div>
+    <mat-card-content class="rules-card-content space-y-6 px-4 pb-5 pt-4 sm:px-6 sm:pb-6">
+      <form *ngIf="!showAddForm && !editingRule" [formGroup]="filterForm" class="filter-toolbar">
+        <label class="filter-search">
+          <svg lucideSearch aria-hidden="true"></svg>
+          <span class="sr-only">Search rules</span>
+          <input type="search" formControlName="searchTerm" placeholder="Search rules">
+        </label>
 
-      <div *ngIf="tenant" class="tenant-info">
-        <div class="info-row">
-          <label>Workspace Name</label>
-          <div class="info-value">{{ tenant.name }}</div>
+        <div class="filter-pill filter-select">
+          <mat-select formControlName="sortOrder" aria-label="Sort rules" panelClass="filter-dropdown-panel" disableOptionCentering>
+            <mat-option value="newest">Newest</mat-option>
+            <mat-option value="oldest">Oldest</mat-option>
+            <mat-option value="name">Name</mat-option>
+          </mat-select>
+          <svg lucideChevronsUpDown aria-hidden="true"></svg>
         </div>
 
-        <div class="info-row">
-          <label>Workspace ID</label>
-          <div class="info-value-with-action">
-            <span class="id-value">{{ tenant.id }}</span>
-            <button (click)="copyTenantId()" class="btn btn-copy" title="Copy to clipboard">
-              📋 Copy
-            </button>
-          </div>
+        <div class="filter-pill filter-select filter-status">
+          <svg lucidePlus aria-hidden="true"></svg>
+          <mat-select formControlName="statusFilter" aria-label="Filter rules by status" panelClass="filter-dropdown-panel" disableOptionCentering>
+            <mat-option value="all">Add filter</mat-option>
+            <mat-option value="enabled">Enabled</mat-option>
+            <mat-option value="disabled">Disabled</mat-option>
+          </mat-select>
+          <svg lucideChevronDown aria-hidden="true"></svg>
         </div>
 
-        <div class="info-row">
-          <label>Status</label>
-          <div class="info-value">
-            <span class="status-badge" [class.active]="tenant.active">
-              {{ tenant.active ? 'Active' : 'Inactive' }}
-            </span>
-          </div>
-        </div>
+        <button mat-flat-button class="create-rule-button responsive-action" type="button" aria-label="Create rule" (click)="showAddForm = true">
+          <svg lucidePlus class="responsive-action__icon mr-2 inline h-4 w-4" aria-hidden="true"></svg>
+          <span class="sr-only sm:not-sr-only">Create Rule</span>
+        </button>
+      </form>
 
-        <div class="info-row">
-          <label>Email</label>
-          <div class="info-value">{{ tenant.email || 'N/A' }}</div>
-        </div>
-
-        <div class="info-row">
-          <label>Created</label>
-          <div class="info-value">{{ tenant.created_at | date: 'medium' || 'N/A' }}</div>
-        </div>
-
-        <div class="info-row">
-          <label>Last Updated</label>
-          <div class="info-value">{{ tenant.updated_at | date: 'medium' || 'N/A' }}</div>
-        </div>
-
-        <!-- Actions -->
-        <div class="actions-section">
-          <button (click)="navigateToDriveExplorer()" class="btn btn-secondary">
-            📁 Drive Explorer
-          </button>
-          <button (click)="logout()" class="btn btn-logout">
-            🚪 Logout
-          </button>
-        </div>
-      </div>
-    </div>
-
-    <!-- Right Panel: Rules Management -->
-    <div class="panel right-panel" [class.rules-manager-panel]="isRulesPage">
-      <div class="panel-header" [class.rules-manager-header]="isRulesPage">
+      <form *ngIf="showAddForm" [formGroup]="createRuleForm" (ngSubmit)="addRule()" class="space-y-6" aria-labelledby="create-rule-heading" novalidate>
+        <h2 id="create-rule-heading" class="text-xl">Create Rule</h2>
         <div>
-          <h1>{{ isRulesPage ? 'Rules Manager' : 'Rules Management' }}</h1>
-          <p>{{ isRulesPage ? 'Automate document parsing and spreadsheet updates for your tenant.' : 'Manage document parsing rules' }}</p>
+          <label for="create-rule-name" class="mb-2 block font-medium">Rule name</label>
+          <mat-form-field appearance="outline" class="w-full">
+            <input id="create-rule-name" matInput formControlName="rule_name" autocomplete="off">
+            <mat-error *ngIf="createRuleForm.controls.rule_name.hasError('required')">Rule name is required.</mat-error>
+            <mat-error *ngIf="createRuleForm.controls.rule_name.hasError('maxlength')">Use 120 characters or fewer.</mat-error>
+          </mat-form-field>
         </div>
-        <button
-          *ngIf="isRulesPage && !showAddForm && !editingRule"
-          (click)="showAddForm = true"
-          class="btn btn-primary create-rule-btn"
-          type="button"
-        >
-          + Create New Rule
-        </button>
-      </div>
-
-      <!-- Add Rule Button -->
-      <div *ngIf="!isRulesPage" class="action-bar">
-        <button 
-          *ngIf="!showAddForm && !editingRule"
-          (click)="showAddForm = true" 
-          class="btn btn-primary"
-        >
-          + Add New Rule
-        </button>
-      </div>
-
-      <div *ngIf="isRulesPage && !showAddForm && !editingRule" class="rules-toolbar">
-        <input
-          type="search"
-          [(ngModel)]="searchTerm"
-          class="rules-search"
-          placeholder="Search by rule name, folder, or sheet name..."
-          aria-label="Search rules"
-        >
-        <select [(ngModel)]="statusFilter" class="rules-select" aria-label="Filter by status">
-          <option value="all">All Statuses</option>
-          <option value="enabled">Enabled</option>
-          <option value="disabled">Disabled</option>
-        </select>
-        <select [(ngModel)]="sortOrder" class="rules-select sort-select" aria-label="Sort rules">
-          <option value="newest">Sort by: Newest</option>
-          <option value="oldest">Sort by: Oldest</option>
-          <option value="name">Sort by: Name</option>
-        </select>
-      </div>
-
-      <!-- Add Rule Form -->
-      <div *ngIf="showAddForm" class="add-rule-form">
-        <h2>Create New Rule</h2>
-
-        <div class="form-group">
-          <label for="ruleName">Rule Name *</label>
-          <input 
-            id="ruleName"
-            type="text" 
-            [(ngModel)]="newRule.rule_name"
-            placeholder="e.g., Invoice Processing"
-            class="form-input"
-          >
-        </div>
-
-        <!-- Source Folder Selection -->
-        <div class="form-group">
-          <label for="sourceFolder">Source Folder *</label>
-          <div class="folder-input-group">
-            <input 
-              id="sourceFolder"
-              type="text" 
-              [(ngModel)]="newRule.source_folder_name"
-              placeholder="Click button to select folder"
-              class="form-input"
-              readonly
-            >
-            <button 
-              (click)="openFolderPicker('source')"
-              [disabled]="!pickerReady"
-              class="btn btn-picker"
-              title="Select folder from Google Drive"
-            >
-              📂 Pick Folder
-            </button>
-          </div>
-          <small class="help-text" *ngIf="newRule.source_folder_id">
-            ID: {{ newRule.source_folder_id }}
-          </small>
-        </div>
-
-        <!-- Target Folder Selection -->
-        <div class="form-group">
-          <label for="targetFolder">Target Folder *</label>
-          <div class="folder-input-group">
-            <input 
-              id="targetFolder"
-              type="text" 
-              [(ngModel)]="newRule.target_folder_name"
-              placeholder="Click button to select folder"
-              class="form-input"
-              readonly
-            >
-            <button 
-              (click)="openFolderPicker('target')"
-              [disabled]="!pickerReady"
-              class="btn btn-picker"
-              title="Select folder from Google Drive"
-            >
-              📂 Pick Folder
-            </button>
-          </div>
-          <small class="help-text" *ngIf="newRule.target_folder_id">
-            ID: {{ newRule.target_folder_id }}
-          </small>
-        </div>
-
-        <div class="form-group">
-          <label for="targetSheet">Target Spreadsheet *</label>
-          <div class="folder-input-group">
-            <input
-              id="targetSheet"
-              type="text"
-              [value]="newRule.target_sheet_name || ''"
-              placeholder="Select a Google Sheet"
-              class="form-input"
-              readonly
-            >
-            <button
-              (click)="openSheetPicker('create')"
-              [disabled]="!pickerReady"
-              class="btn btn-picker"
-              title="Select a spreadsheet from Google Drive"
-              type="button"
-            >
-              Pick Sheet
-            </button>
-          </div>
-          <small class="help-text" *ngIf="newRule.target_sheet_id">
-            ID: {{ newRule.target_sheet_id }}
-          </small>
-        </div>
-
-        <div class="form-group">
-          <label for="tabName">Sheet Tab Name *</label>
-          <input 
-            id="tabName"
-            type="text" 
-            [(ngModel)]="newRule.sheet_tab_name"
-            placeholder="e.g., Invoices"
-            class="form-input"
-          >
-        </div>
-
-        <div class="form-group checkbox">
-          <label>
-            <input 
-              type="checkbox" 
-              [(ngModel)]="newRule.is_enabled"
-            >
-            <span>Enable this rule</span>
-          </label>
-        </div>
-
-        <div class="form-actions">
-          <button 
-            (click)="addRule()" 
-            class="btn btn-primary"
-          >
-            Create Rule
-          </button>
-          <button 
-            (click)="cancelAddRule()" 
-            class="btn btn-secondary"
-          >
-            Cancel
-          </button>
-        </div>
-      </div>
-
-      <!-- Edit Rule Form -->
-      <section *ngIf="editingRule" class="add-rule-form edit-rule-form" aria-labelledby="edit-rule-heading">
-        <div class="edit-form-header">
+        <div class="grid gap-4 md:grid-cols-[1fr_12rem]">
           <div>
-            <button (click)="cancelEditingRule()" class="btn-back-link" type="button">
-              ← Back to rules
-            </button>
-            <h2 id="edit-rule-heading">Edit Rule</h2>
+            <label for="create-condition-mode" class="mb-2 block font-medium">Match</label>
+            <mat-form-field appearance="outline" class="w-full"><mat-select id="create-condition-mode" formControlName="condition_mode"><mat-option value="all">All conditions</mat-option><mat-option value="any">Any condition</mat-option></mat-select></mat-form-field>
           </div>
-          <span class="rule-id">ID: {{ editingRule.rule_id }}</span>
-        </div>
-
-        <div class="form-group">
-          <label for="editRuleName">Rule Name *</label>
-          <input id="editRuleName" type="text" [(ngModel)]="editingRule.rule_name" class="form-input">
-        </div>
-
-        <div class="form-group">
-          <label for="editSourceFolder">Source Folder *</label>
-          <div class="folder-input-group">
-            <input id="editSourceFolder" type="text" [value]="editingRule.source_folder_name || editingRule.source_folder_id" class="form-input" readonly>
-            <button (click)="openFolderPicker('source', 'edit')" [disabled]="!pickerReady" class="btn btn-picker" type="button">Pick Folder</button>
-          </div>
-          <small class="help-text">ID: {{ editingRule.source_folder_id }}</small>
-        </div>
-
-        <div class="form-group">
-          <label for="editTargetFolder">Target Folder *</label>
-          <div class="folder-input-group">
-            <input id="editTargetFolder" type="text" [value]="editingRule.target_folder_name || editingRule.target_folder_id" class="form-input" readonly>
-            <button (click)="openFolderPicker('target', 'edit')" [disabled]="!pickerReady" class="btn btn-picker" type="button">Pick Folder</button>
-          </div>
-          <small class="help-text">ID: {{ editingRule.target_folder_id }}</small>
-        </div>
-
-        <div class="form-group">
-          <label for="editTargetSheet">Target Spreadsheet *</label>
-          <div class="folder-input-group">
-            <input id="editTargetSheet" type="text" [value]="editingRule.target_sheet_name || editingRule.target_sheet_id" class="form-input" readonly>
-            <button (click)="openSheetPicker('edit')" [disabled]="!pickerReady" class="btn btn-picker" type="button">Pick Sheet</button>
+          <div>
+            <label for="create-priority" class="mb-2 block font-medium">Priority</label>
+            <mat-form-field appearance="outline" class="w-full"><input id="create-priority" matInput type="number" min="0" formControlName="priority"></mat-form-field>
           </div>
         </div>
-
-        <div class="form-group">
-          <label for="editTabName">Sheet Tab Name *</label>
-          <input id="editTabName" type="text" [(ngModel)]="editingRule.sheet_tab_name" class="form-input">
-        </div>
-
-        <div class="form-group checkbox">
-          <label>
-            <input type="checkbox" [(ngModel)]="editingRule.is_enabled">
-            <span>Enable this rule</span>
-          </label>
-        </div>
-
-        <div class="form-actions">
-          <button (click)="saveEditedRule()" class="btn btn-primary" type="button">Save Changes</button>
-          <button (click)="cancelEditingRule()" class="btn btn-secondary" type="button">Cancel</button>
-        </div>
-      </section>
-
-      <!-- Rules List -->
-      <div *ngIf="!editingRule" class="rules-list">
-        <div *ngIf="isRulesPage" class="rules-table-shell">
-          <table class="rules-table">
-            <thead>
-              <tr>
-                <th>Status</th>
-                <th>Rule Name</th>
-                <th>Pipeline (Source → Target)</th>
-                <th>Sheet Tab</th>
-                <th>Last Updated</th>
-                <th>Actions</th>
-              </tr>
-            </thead>
-            <tbody>
-              <tr *ngFor="let rule of filteredRules">
-                <td>
-                  <button
-                    (click)="toggleRuleEnabled(rule)"
-                    class="status-toggle"
-                    [class.enabled]="rule.is_enabled"
-                    [attr.aria-label]="(rule.is_enabled ? 'Disable ' : 'Enable ') + rule.rule_name"
-                    [attr.aria-pressed]="rule.is_enabled"
-                    type="button"
-                  ><span></span></button>
-                </td>
-                <td>
-                  <strong class="table-rule-name">{{ rule.rule_name }}</strong>
-                  <span class="table-rule-id">ID: {{ rule.rule_id }}</span>
-                </td>
-                <td class="pipeline-cell">
-                  <span>{{ rule.source_folder_name || rule.source_folder_id }}</span>
-                  <span class="pipeline-arrow">→</span>
-                  <span>{{ rule.target_folder_name || rule.target_folder_id }}</span>
-                </td>
-                <td>{{ rule.sheet_tab_name }}</td>
-                <td>{{ rule.updated_at | date: 'MMM d, y' }}</td>
-                <td class="table-actions">
-                  <button (click)="startEditingRule(rule)" class="table-edit-btn" type="button">Edit</button>
-                  <button
-                    (click)="deleteRule(rule.rule_id)"
-                    class="table-delete-btn"
-                    [disabled]="deletingRuleId === rule.rule_id"
-                    type="button"
-                  >
-                    {{ deletingRuleId === rule.rule_id ? 'Deleting...' : 'Delete' }}
-                  </button>
-                </td>
-              </tr>
-              <tr *ngIf="filteredRules.length === 0">
-                <td colspan="6" class="table-empty">No rules match your filters.</td>
-              </tr>
-            </tbody>
-          </table>
-        </div>
-
-        <ng-container *ngIf="!isRulesPage">
-          <h2>Active Rules</h2>
-
-          <div *ngIf="rules.length === 0" class="empty-state">
-            <p>No rules created yet. Create one to get started!</p>
+        <div formArrayName="conditions" class="space-y-3">
+          <div *ngFor="let condition of conditionControls('create').controls; let index = index" [formGroupName]="index" class="grid items-start gap-3 lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_minmax(0,1fr)_3rem]">
+            <mat-form-field appearance="outline" floatLabel="always" class="w-full min-w-0"><mat-label>Field</mat-label><mat-select formControlName="field"><mat-option *ngFor="let field of schemeFields" [value]="field.key">{{ field.label }}</mat-option></mat-select></mat-form-field>
+            <mat-form-field appearance="outline" floatLabel="always" class="w-full min-w-0"><mat-label>Operator</mat-label><mat-select formControlName="operator"><mat-select-trigger>{{ operatorLabel(condition.controls.operator.value) }}</mat-select-trigger><mat-option *ngFor="let operator of operatorsFor(condition.controls.field.value)" [value]="operator">{{ operatorLabel(operator) }}</mat-option></mat-select></mat-form-field>
+            <mat-form-field appearance="outline" floatLabel="always" class="w-full min-w-0"><mat-label>Value</mat-label><input matInput [type]="valueInputType(condition.controls.field.value)" formControlName="value"></mat-form-field>
+            <button mat-icon-button class="justify-self-center" type="button" aria-label="Remove condition" (click)="removeCondition('create', index)" [disabled]="conditionControls('create').length === 1"><svg lucideTrash2 class="h-4 w-4" aria-hidden="true"></svg></button>
           </div>
+          <button mat-stroked-button class="responsive-action" type="button" aria-label="Add condition" (click)="addCondition('create')"><svg lucidePlus class="responsive-action__icon mr-2 inline h-4 w-4" aria-hidden="true"></svg><span class="sr-only sm:not-sr-only">Add condition</span></button>
+        </div>
+        <div class="grid gap-6 md:grid-cols-2">
+          <div>
+            <label for="create-target-folder" class="mb-2 block font-medium">Target folder</label>
+            <mat-form-field appearance="outline" class="w-full">
+              <input id="create-target-folder" matInput formControlName="target_folder_name" readonly>
+              <button mat-icon-button matSuffix type="button" aria-label="Select target folder" (click)="openFolderPicker('target')" [disabled]="!pickerReady"><svg lucideFolderOpen class="h-5 w-5" aria-hidden="true"></svg></button>
+              <mat-hint *ngIf="createRuleForm.controls.target_folder_id.value">{{ createRuleForm.controls.target_folder_id.value }}</mat-hint>
+              <mat-error *ngIf="createRuleForm.controls.target_folder_name.hasError('required')">Select a target folder.</mat-error>
+            </mat-form-field>
+          </div>
+          <div>
+            <label for="create-target-sheet" class="mb-2 block font-medium">Target spreadsheet</label>
+            <mat-form-field appearance="outline" class="w-full">
+              <input id="create-target-sheet" matInput formControlName="target_sheet_name" readonly>
+              <button mat-icon-button matSuffix type="button" aria-label="Select target spreadsheet" (click)="openSheetPicker('create')" [disabled]="!pickerReady"><svg lucideFileSpreadsheet class="h-5 w-5" aria-hidden="true"></svg></button>
+              <mat-hint *ngIf="createRuleForm.controls.target_sheet_id.value">{{ createRuleForm.controls.target_sheet_id.value }}</mat-hint>
+              <mat-error *ngIf="createRuleForm.controls.target_sheet_name.hasError('required')">Select a spreadsheet.</mat-error>
+            </mat-form-field>
+          </div>
+          <div>
+            <label for="create-sheet-tab" class="mb-2 block font-medium">Sheet tab name</label>
+            <mat-form-field appearance="outline" class="w-full">
+              <input id="create-sheet-tab" matInput formControlName="sheet_tab_name" autocomplete="off">
+              <mat-error *ngIf="createRuleForm.controls.sheet_tab_name.hasError('required')">Sheet tab name is required.</mat-error>
+              <mat-error *ngIf="createRuleForm.controls.sheet_tab_name.hasError('maxlength')">Use 100 characters or fewer.</mat-error>
+            </mat-form-field>
+          </div>
+        </div>
+        <div><mat-slide-toggle formControlName="is_enabled">Enabled</mat-slide-toggle></div>
+        <div class="flex flex-wrap gap-3">
+          <button mat-flat-button class="responsive-action" type="submit" aria-label="Create rule" [disabled]="isLoading"><svg lucideSave class="responsive-action__icon mr-2 inline h-4 w-4" aria-hidden="true"></svg><span class="sr-only sm:not-sr-only">Create Rule</span></button>
+          <button mat-stroked-button class="responsive-action" type="button" aria-label="Cancel creating rule" (click)="cancelAddRule()"><svg lucideX class="responsive-action__icon mr-2 inline h-4 w-4" aria-hidden="true"></svg><span class="sr-only sm:not-sr-only">Cancel</span></button>
+        </div>
+      </form>
 
-          <div *ngFor="let rule of rules" class="rule-item">
-          <div class="rule-header">
-            <div class="rule-title">
-              <h3>{{ rule.rule_name }}</h3>
-              <span class="rule-status" [class.enabled]="rule.is_enabled">
-                {{ rule.is_enabled ? '✓ Enabled' : '✗ Disabled' }}
-              </span>
+      <form *ngIf="editingRule" [formGroup]="editRuleForm" (ngSubmit)="saveEditedRule()" class="space-y-6" aria-labelledby="edit-rule-heading" novalidate>
+        <div class="flex flex-wrap items-center gap-3">
+          <button mat-icon-button type="button" aria-label="Back to rules" (click)="cancelEditingRule()"><svg lucideArrowLeft class="h-5 w-5" aria-hidden="true"></svg></button>
+          <div><h2 id="edit-rule-heading" class="text-xl">Edit Rule</h2><p class="text-sm">{{ editingRule.rule_id }}</p></div>
+        </div>
+        <div>
+          <label for="edit-rule-name" class="mb-2 block font-medium">Rule name</label>
+          <mat-form-field appearance="outline" class="w-full">
+            <input id="edit-rule-name" matInput formControlName="rule_name" autocomplete="off">
+            <mat-error *ngIf="editRuleForm.controls.rule_name.hasError('required')">Rule name is required.</mat-error>
+            <mat-error *ngIf="editRuleForm.controls.rule_name.hasError('maxlength')">Use 120 characters or fewer.</mat-error>
+          </mat-form-field>
+        </div>
+        <div class="grid gap-4 md:grid-cols-[1fr_12rem]">
+          <div>
+            <label for="edit-condition-mode" class="mb-2 block font-medium">Match</label>
+            <mat-form-field appearance="outline" class="w-full"><mat-select id="edit-condition-mode" formControlName="condition_mode"><mat-option value="all">All conditions</mat-option><mat-option value="any">Any condition</mat-option></mat-select></mat-form-field>
+          </div>
+          <div>
+            <label for="edit-priority" class="mb-2 block font-medium">Priority</label>
+            <mat-form-field appearance="outline" class="w-full"><input id="edit-priority" matInput type="number" min="0" formControlName="priority"></mat-form-field>
+          </div>
+        </div>
+        <div formArrayName="conditions" class="space-y-3">
+          <div *ngFor="let condition of conditionControls('edit').controls; let index = index" [formGroupName]="index" class="grid items-start gap-3 lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_minmax(0,1fr)_3rem]">
+            <mat-form-field appearance="outline" floatLabel="always" class="w-full min-w-0"><mat-label>Field</mat-label><mat-select formControlName="field"><mat-option *ngFor="let field of schemeFields" [value]="field.key">{{ field.label }}</mat-option></mat-select></mat-form-field>
+            <mat-form-field appearance="outline" floatLabel="always" class="w-full min-w-0"><mat-label>Operator</mat-label><mat-select formControlName="operator"><mat-select-trigger>{{ operatorLabel(condition.controls.operator.value) }}</mat-select-trigger><mat-option *ngFor="let operator of operatorsFor(condition.controls.field.value)" [value]="operator">{{ operatorLabel(operator) }}</mat-option></mat-select></mat-form-field>
+            <mat-form-field appearance="outline" floatLabel="always" class="w-full min-w-0"><mat-label>Value</mat-label><input matInput [type]="valueInputType(condition.controls.field.value)" formControlName="value"></mat-form-field>
+            <button mat-icon-button class="justify-self-center" type="button" aria-label="Remove condition" (click)="removeCondition('edit', index)" [disabled]="conditionControls('edit').length === 1"><svg lucideTrash2 class="h-4 w-4" aria-hidden="true"></svg></button>
+          </div>
+          <button mat-stroked-button class="responsive-action" type="button" aria-label="Add condition" (click)="addCondition('edit')"><svg lucidePlus class="responsive-action__icon mr-2 inline h-4 w-4" aria-hidden="true"></svg><span class="sr-only sm:not-sr-only">Add condition</span></button>
+        </div>
+        <div class="grid gap-6 md:grid-cols-2">
+          <div>
+            <label for="edit-target-folder" class="mb-2 block font-medium">Target folder</label>
+            <mat-form-field appearance="outline" class="w-full">
+              <input id="edit-target-folder" matInput formControlName="target_folder_name" readonly>
+              <button mat-icon-button matSuffix type="button" aria-label="Select target folder" (click)="openFolderPicker('target', 'edit')" [disabled]="!pickerReady"><svg lucideFolderOpen class="h-5 w-5" aria-hidden="true"></svg></button>
+              <mat-error *ngIf="editRuleForm.controls.target_folder_name.hasError('required')">Select a target folder.</mat-error>
+            </mat-form-field>
+          </div>
+          <div>
+            <label for="edit-target-sheet" class="mb-2 block font-medium">Target spreadsheet</label>
+            <mat-form-field appearance="outline" class="w-full">
+              <input id="edit-target-sheet" matInput formControlName="target_sheet_name" readonly>
+              <button mat-icon-button matSuffix type="button" aria-label="Select target spreadsheet" (click)="openSheetPicker('edit')" [disabled]="!pickerReady"><svg lucideFileSpreadsheet class="h-5 w-5" aria-hidden="true"></svg></button>
+              <mat-error *ngIf="editRuleForm.controls.target_sheet_name.hasError('required')">Select a spreadsheet.</mat-error>
+            </mat-form-field>
+          </div>
+          <div>
+            <label for="edit-sheet-tab" class="mb-2 block font-medium">Sheet tab name</label>
+            <mat-form-field appearance="outline" class="w-full">
+              <input id="edit-sheet-tab" matInput formControlName="sheet_tab_name" autocomplete="off">
+              <mat-error *ngIf="editRuleForm.controls.sheet_tab_name.hasError('required')">Sheet tab name is required.</mat-error>
+              <mat-error *ngIf="editRuleForm.controls.sheet_tab_name.hasError('maxlength')">Use 100 characters or fewer.</mat-error>
+            </mat-form-field>
+          </div>
+        </div>
+        <div><mat-slide-toggle formControlName="is_enabled">Enabled</mat-slide-toggle></div>
+        <div class="flex flex-wrap gap-3">
+          <button mat-flat-button class="responsive-action" type="submit" aria-label="Save rule changes" [disabled]="isLoading"><svg lucideSave class="responsive-action__icon mr-2 inline h-4 w-4" aria-hidden="true"></svg><span class="sr-only sm:not-sr-only">Save Changes</span></button>
+          <button mat-stroked-button class="responsive-action" type="button" aria-label="Cancel editing rule" (click)="cancelEditingRule()"><svg lucideX class="responsive-action__icon mr-2 inline h-4 w-4" aria-hidden="true"></svg><span class="sr-only sm:not-sr-only">Cancel</span></button>
+        </div>
+      </form>
+
+      <div *ngIf="!showAddForm && !editingRule">
+        <p *ngIf="filteredRules.length === 0" class="py-6 text-center">No rules match your filters.</p>
+        <div *ngIf="filteredRules.length > 0" class="divide-y xl:hidden">
+          <article *ngFor="let rule of filteredRules" class="space-y-4 py-5 first:pt-0 last:pb-0">
+            <div class="flex items-start justify-between gap-4">
+              <div class="min-w-0">
+                <h3 class="truncate text-lg font-medium">{{ rule.rule_name }}</h3>
+                <p class="truncate text-sm">{{ rule.rule_id }}</p>
+              </div>
+              <mat-slide-toggle [checked]="rule.is_enabled" (change)="toggleRuleEnabled(rule)" [attr.aria-label]="(rule.is_enabled ? 'Disable ' : 'Enable ') + rule.rule_name"></mat-slide-toggle>
             </div>
-            <div class="rule-actions">
-              <button
-                (click)="startEditingRule(rule)"
-                class="btn btn-edit"
-                type="button"
-              >
-                Edit
-              </button>
-              <button 
-                (click)="toggleRuleEnabled(rule)" 
-                class="btn btn-icon"
-                [title]="rule.is_enabled ? 'Disable' : 'Enable'"
-              >
-                {{ rule.is_enabled ? '✓' : '✗' }}
-              </button>
-              <button 
-                (click)="deleteRule(rule.rule_id)" 
-                class="btn btn-delete"
-                title="Delete"
-              >
-                🗑️
-              </button>
+            <dl class="grid grid-cols-[max-content_1fr] gap-x-4 gap-y-2 text-sm">
+              <dt>Conditions</dt><dd>{{ rule.conditions?.length || 0 }}</dd>
+              <dt>Target</dt><dd class="min-w-0 truncate">{{ rule.target_folder_name || rule.target_folder_id }}</dd>
+              <dt>Sheet tab</dt><dd>{{ rule.sheet_tab_name }}</dd>
+              <dt>Updated</dt><dd>{{ rule.updated_at | date: 'mediumDate' }}</dd>
+            </dl>
+            <div class="flex flex-wrap gap-2">
+              <button mat-stroked-button class="responsive-action" type="button" [attr.aria-label]="'Edit ' + rule.rule_name" (click)="startEditingRule(rule)"><svg lucidePencil class="responsive-action__icon mr-2 inline h-4 w-4" aria-hidden="true"></svg><span class="sr-only sm:not-sr-only">Edit</span></button>
+              <button mat-button class="responsive-action" type="button" [attr.aria-label]="'Delete ' + rule.rule_name" (click)="deleteRule(rule.rule_id)" [disabled]="deletingRuleId === rule.rule_id"><svg lucideTrash2 class="responsive-action__icon mr-2 inline h-4 w-4" aria-hidden="true"></svg><span class="sr-only sm:not-sr-only">Delete</span></button>
             </div>
-          </div>
-
-          <div class="rule-details">
-            <div class="detail-row">
-              <span class="detail-label">Source Folder:</span>
-              <span class="detail-value">{{ rule.source_folder_name || rule.source_folder_id }}</span>
-            </div>
-            <div class="detail-row">
-              <span class="detail-label">Target Folder:</span>
-              <span class="detail-value">{{ rule.target_folder_name || rule.target_folder_id }}</span>
-            </div>
-            <div class="detail-row">
-              <span class="detail-label">Sheet:</span>
-              <span class="detail-value">{{ rule.target_sheet_id }}</span>
-            </div>
-            <div class="detail-row">
-              <span class="detail-label">Tab:</span>
-              <span class="detail-value">{{ rule.sheet_tab_name }}</span>
-            </div>
-          </div>
-          </div>
-        </ng-container>
+          </article>
+        </div>
+        <div *ngIf="filteredRules.length > 0" class="hidden overflow-x-auto xl:block">
+        <table mat-table [dataSource]="filteredRules" class="w-full">
+          <ng-container matColumnDef="enabled">
+            <th mat-header-cell *matHeaderCellDef>Status</th>
+            <td mat-cell *matCellDef="let rule"><mat-slide-toggle [checked]="rule.is_enabled" (change)="toggleRuleEnabled(rule)" [attr.aria-label]="(rule.is_enabled ? 'Disable ' : 'Enable ') + rule.rule_name"></mat-slide-toggle></td>
+          </ng-container>
+          <ng-container matColumnDef="name">
+            <th mat-header-cell *matHeaderCellDef>Rule</th>
+            <td mat-cell *matCellDef="let rule"><strong>{{ rule.rule_name }}</strong><br><small>{{ rule.rule_id }}</small></td>
+          </ng-container>
+          <ng-container matColumnDef="pipeline">
+            <th mat-header-cell *matHeaderCellDef>Pipeline</th>
+            <td mat-cell *matCellDef="let rule">{{ rule.conditions?.length || 0 }} condition(s)<br>{{ rule.target_folder_name || rule.target_folder_id }}</td>
+          </ng-container>
+          <ng-container matColumnDef="sheet">
+            <th mat-header-cell *matHeaderCellDef>Sheet Tab</th>
+            <td mat-cell *matCellDef="let rule">{{ rule.sheet_tab_name }}</td>
+          </ng-container>
+          <ng-container matColumnDef="updated">
+            <th mat-header-cell *matHeaderCellDef>Updated</th>
+            <td mat-cell *matCellDef="let rule">{{ rule.updated_at | date: 'mediumDate' }}</td>
+          </ng-container>
+          <ng-container matColumnDef="actions">
+            <th mat-header-cell *matHeaderCellDef>Actions</th>
+            <td mat-cell *matCellDef="let rule" class="whitespace-nowrap">
+              <button mat-icon-button type="button" aria-label="Edit rule" (click)="startEditingRule(rule)"><svg lucidePencil class="h-4 w-4" aria-hidden="true"></svg></button>
+              <button mat-icon-button type="button" aria-label="Delete rule" (click)="deleteRule(rule.rule_id)" [disabled]="deletingRuleId === rule.rule_id"><svg lucideTrash2 class="h-4 w-4" aria-hidden="true"></svg></button>
+            </td>
+          </ng-container>
+          <tr mat-header-row *matHeaderRowDef="['enabled', 'name', 'pipeline', 'sheet', 'updated', 'actions']"></tr>
+          <tr mat-row *matRowDef="let row; columns: ['enabled', 'name', 'pipeline', 'sheet', 'updated', 'actions'];"></tr>
+        </table>
+        </div>
       </div>
-    </div>
-  </div>
+    </mat-card-content>
+  </mat-card>
 </div>

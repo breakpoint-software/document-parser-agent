@@ -1,32 +1,28 @@
 import { Routes } from '@angular/router';
-import { GoogleAuthComponent } from './components/google-auth/google-auth.component';
-import { SignupComponent } from './components/signup/signup.component';
-import { UnifiedDashboardComponent } from './components/unified-dashboard/unified-dashboard.component';
-import { TestOAuthComponent } from './components/test-oauth/test-oauth.component';
 
 export const routes: Routes = [
   {
     path: '',
-    component: SignupComponent
-  },
-  {
-    path: 'signup',
-    component: SignupComponent
+    loadComponent: () => import('./components/workspace-entry/workspace-entry').then(module => module.WorkspaceEntry)
   },
   {
     path: 'auth-callback',
-    component: GoogleAuthComponent
+    loadComponent: () => import('./components/google-auth/google-auth.component').then(module => module.GoogleAuthComponent)
   },
   {
-    path: 'dashboard/:tenantId',
-    component: UnifiedDashboardComponent
+    path: 'dashboard/:workspaceId',
+    loadComponent: () => import('./components/workspace-dashboard/workspace-dashboard.component').then(module => module.WorkspaceDashboardComponent)
   },
   {
-    path: 'rules/:tenantId',
-    component: UnifiedDashboardComponent
+    path: 'rules/:workspaceId',
+    loadComponent: () => import('./components/unified-dashboard/unified-dashboard.component').then(module => module.RulesManagementComponent)
   },
   {
     path: 'test-oauth',
-    component: TestOAuthComponent
+    loadComponent: () => import('./components/test-oauth/test-oauth.component').then(module => module.TestOAuthComponent)
+  },
+  {
+    path: '**',
+    redirectTo: ''
   }
 ];

@@ -1,10 +1,10 @@
 /**
  * Credentials Model
- * Represents stored API credentials for a tenant
+ * Represents stored API credentials for a workspace
  */
 export interface Credentials {
   credential_id: string;
-  tenant_id: string;
+  workspace_id: string;
   openai_api_key: string;
   created_at: Date;
   updated_at: Date;
@@ -15,7 +15,7 @@ export interface Credentials {
  * Data required to create credentials
  */
 export interface CredentialsCreateRequest {
-  tenant_id: string;
+  workspace_id: string;
   openai_api_key: string;
 }
 

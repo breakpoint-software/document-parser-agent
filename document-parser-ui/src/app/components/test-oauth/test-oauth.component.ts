@@ -1,28 +1,81 @@
-import { Component, OnInit } from '@angular/core';
+import { Component, DestroyRef, inject, OnInit } from '@angular/core';
+import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { CommonModule } from '@angular/common';
+import { MatButtonModule } from '@angular/material/button';
+import { MatCardModule } from '@angular/material/card';
+import { MatDividerModule } from '@angular/material/divider';
+import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
+import {
+  LucideBookOpen,
+  LucideCircleAlert,
+  LucideCircleCheck,
+  LucideCircleX,
+  LucideExternalLink,
+  LucideFileSpreadsheet,
+  LucideFileText,
+  LucideFolderOpen,
+  LucideInfo,
+  LucideListChecks,
+  LucideListPlus,
+  LucidePaperclip,
+  LucidePenLine,
+  LucideRefreshCw,
+  LucideSearch,
+  LucideTrash2
+} from '@lucide/angular';
 import { GoogleSheetsService } from '../../services/google-sheets.service';
 import { GoogleDriveService, DriveFile } from '../../services/google-drive.service';
 import { GoogleAuthService } from '../../services/google-auth.service';
 
+interface TestResult {
+  type: 'success' | 'error' | 'info';
+  title: string;
+  message: string;
+  timestamp: Date;
+}
+
 @Component({
   selector: 'app-test-oauth',
   standalone: true,
-  imports: [CommonModule],
-  templateUrl: './test-oauth.component.html',
-  styleUrl: './test-oauth.component.css'
+  imports: [
+    CommonModule,
+    MatButtonModule,
+    MatCardModule,
+    MatDividerModule,
+    MatProgressSpinnerModule,
+    LucideBookOpen,
+    LucideCircleAlert,
+    LucideCircleCheck,
+    LucideCircleX,
+    LucideExternalLink,
+    LucideFileSpreadsheet,
+    LucideFileText,
+    LucideFolderOpen,
+    LucideInfo,
+    LucideListChecks,
+    LucideListPlus,
+    LucidePaperclip,
+    LucidePenLine,
+    LucideRefreshCw,
+    LucideSearch,
+    LucideTrash2
+  ],
+  templateUrl: './test-oauth.component.html'
 })
 export class TestOAuthComponent implements OnInit {
+  private readonly destroyRef = inject(DestroyRef);
+
   // Test configuration
   readonly SPREADSHEET_ID = '1YhmRraDrebM0566fcIx7_4HZ1OrI-9Jxk1lw5p9Ienw';
-  readonly SHEET_NAME = 'Sheet1'; // ✅ Correct sheet name (verified with batchUpdate API)
+  readonly SHEET_NAME = 'Sheet1';
   readonly FOLDER_ID = '1oH_-rVoYyo6FJ3I8hBFQFOOi1Jx1HcTZ';
 
   // State management
   isAuthenticated = false;
   isLoading = false;
-  testResults: any[] = [];
+  testResults: TestResult[] = [];
   driveFiles: DriveFile[] = [];
-  sheetData: any = null;
+  sheetData: unknown[][] = [];
   errorMessage = '';
 
   constructor(
@@ -33,9 +86,11 @@ export class TestOAuthComponent implements OnInit {
 
   ngOnInit(): void {
     // Check both authService state AND sessionStorage for token
-    this.authService.authState$.subscribe(state => {
-      this.isAuthenticated = state.isAuthenticated;
-    });
+    this.authService.authState$
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe(state => {
+        this.isAuthenticated = state.isAuthenticated;
+      });
     
     // Also check if access token exists in sessionStorage
     const hasToken = !!sessionStorage.getItem('access_token');
@@ -62,11 +117,10 @@ export class TestOAuthComponent implements OnInit {
     this.sheetsService.readFromSheet(this.SPREADSHEET_ID, range).subscribe({
       next: (response) => {
         this.isLoading = false;
-        console.log('✅ Token is valid! Response:', response);
         this.addResult(
           'success',
           'Token Validity Test',
-          `✅ SUCCESS! Token has proper scopes and sheet is accessible. Data: ${JSON.stringify(response.values || [])}`
+          `Token has proper scopes and the sheet is accessible. Data: ${JSON.stringify(response.values || [])}`
         );
       },
       error: (error) => {
@@ -75,7 +129,7 @@ export class TestOAuthComponent implements OnInit {
         this.addResult(
           'error',
           'Token Validity Test',
-          `❌ Cannot access sheet. Error: ${error.message}. Please verify:
+          `Cannot access sheet. Error: ${error.message}. Please verify:
            1. Spreadsheet ID is correct (from sheet URL)
            2. Sheet name "Libro" exists in the spreadsheet
            3. Your Google account has access to this sheet`
@@ -107,12 +161,11 @@ export class TestOAuthComponent implements OnInit {
 
     this.sheetsService.writeToSheet(this.SPREADSHEET_ID, range, testData).subscribe({
       next: (response) => {
-        console.log('Write to Sheet response:', response);
         this.isLoading = false;
         this.addResult(
           'success',
           'Write to Google Sheet',
-          `✅ Successfully wrote ${response.updatedCells} cells to the sheet at ${timestamp}`
+          `Successfully wrote ${response.updatedCells} cells to the sheet at ${timestamp}`
         );
       },
       error: (error) => {
@@ -146,12 +199,11 @@ export class TestOAuthComponent implements OnInit {
 
     this.sheetsService.appendToSheet(this.SPREADSHEET_ID, range, testData).subscribe({
       next: (response) => {
-        console.log('Append to Sheet response:', response);
         this.isLoading = false;
         this.addResult(
           'success',
           'Append to Google Sheet',
-          `✅ Successfully appended row at ${response.updates.updatedRange}`
+          `Successfully appended row at ${response.updates.updatedRange}`
         );
       },
       error: (error) => {
@@ -185,12 +237,11 @@ export class TestOAuthComponent implements OnInit {
 
     this.sheetsService.batchUpdateSheet(this.SPREADSHEET_ID, range, testData).subscribe({
       next: (response) => {
-        console.log('Batch Update Sheet response:', response);
         this.isLoading = false;
         this.addResult(
           'success',
           'Batch Update Google Sheet',
-          `✅ Successfully batch updated ${response.totalUpdatedCells} cells in the sheet`
+          `Successfully batch updated ${response.totalUpdatedCells} cells in the sheet`
         );
       },
       error: (error) => {
@@ -217,13 +268,12 @@ export class TestOAuthComponent implements OnInit {
 
     this.sheetsService.readFromSheet(this.SPREADSHEET_ID, range).subscribe({
       next: (response) => {
-        console.log('Read from Sheet response:', response);
         this.isLoading = false;
         this.sheetData = response.values || [];
         this.addResult(
           'success',
           'Read from Google Sheet',
-          `✅ Successfully read ${this.sheetData.length} rows from the sheet`
+          `Successfully read ${this.sheetData.length} rows from the sheet`
         );
       },
       error: (error) => {
@@ -249,7 +299,6 @@ export class TestOAuthComponent implements OnInit {
 
     this.driveService.listFilesInFolder(this.FOLDER_ID).subscribe({
       next: (response) => {
-        console.log('List files response:', response);
         this.isLoading = false;
         this.driveFiles = response.files || [];
         this.addResult(
@@ -289,7 +338,7 @@ export class TestOAuthComponent implements OnInit {
   clearResults(): void {
     this.testResults = [];
     this.driveFiles = [];
-    this.sheetData = null;
+    this.sheetData = [];
     this.errorMessage = '';
   }
 
@@ -297,7 +346,6 @@ export class TestOAuthComponent implements OnInit {
    * Clear stored token and force re-authentication
    */
   clearTokenAndRelogin(): void {
-    console.log('🔄 Clearing token and logging out...');
     sessionStorage.removeItem('access_token');
     this.authService.logout();
     this.testResults = [];

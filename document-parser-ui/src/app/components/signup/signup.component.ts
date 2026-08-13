@@ -1,7 +1,10 @@
 import { Component, OnInit, OnDestroy } from '@angular/core';
 import { CommonModule } from '@angular/common';
-import { FormsModule } from '@angular/forms';
 import { Router } from '@angular/router';
+import { MatButtonModule } from '@angular/material/button';
+import { MatCardModule } from '@angular/material/card';
+import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
+import { LucideCircleAlert, LucideCircleCheck, LucideLogOut, LucideShieldCheck } from '@lucide/angular';
 import { Subject } from 'rxjs';
 import { takeUntil } from 'rxjs/operators';
 import { FirebaseAuthService, UserProfile } from '../../services/firebase-auth.service';
@@ -11,17 +14,23 @@ import { UserAccountCreateRequest } from '../../models';
 @Component({
   selector: 'app-signup',
   standalone: true,
-  imports: [CommonModule, FormsModule],
-  templateUrl: './signup.component.html',
-  styleUrls: ['./signup.component.css']
+  imports: [
+    CommonModule,
+    MatButtonModule,
+    MatCardModule,
+    MatProgressSpinnerModule,
+    LucideCircleAlert,
+    LucideCircleCheck,
+    LucideLogOut,
+    LucideShieldCheck,
+  ],
+  templateUrl: './signup.component.html'
 })
 export class SignupComponent implements OnInit, OnDestroy {
   currentUser: UserProfile | null = null;
   isLoading = false;
   errorMessage = '';
   successMessage = '';
-  showTenantForm = false;
-  tenantName = '';
   
   private destroy$ = new Subject<void>();
 
@@ -30,13 +39,6 @@ export class SignupComponent implements OnInit, OnDestroy {
     private userAccountService: UserAccountService,
     private router: Router
   ) {}
-
-  /**
-   * Check if tenant name is valid and not empty
-   */
-  get isTenantNameValid(): boolean {
-    return this.tenantName.trim().length > 0;
-  }
 
   /**
    * Safe string conversion helper
@@ -52,12 +54,10 @@ export class SignupComponent implements OnInit, OnDestroy {
       .subscribe(user => {
         this.currentUser = user;
         if (user) {
-          // Check if user already has an account
           this.checkUserAccount(user.uid);
         }
       });
 
-    // Subscribe to loading state
     this.authService.loading$
       .pipe(takeUntil(this.destroy$))
       .subscribe(loading => {
@@ -65,25 +65,20 @@ export class SignupComponent implements OnInit, OnDestroy {
       });
   }
 
-  /**
-   * Check if user already has an account
-   */
   private checkUserAccount(uid: string): void {
     this.userAccountService.getUserAccountByUid(uid)
       .pipe(takeUntil(this.destroy$))
       .subscribe({
-        next: (response) => {
-          // User already has an account, redirect to dashboard
+        next: response => {
           const displayName = this.getString(this.currentUser?.displayName || this.currentUser?.email, 'User');
           this.successMessage = `Welcome back, ${displayName}!`;
           setTimeout(() => {
-            this.router.navigate(['/dashboard', response.tenant_id]);
+            this.router.navigate(['/dashboard', response.workspace_id]);
           }, 1500);
         },
-        error: (error) => {
-          // User is new, auto-create tenant with default data
+        error: error => {
           if (error.status === 404) {
-            this.autoCreateTenantAndAccount();
+            this.autoCreateWorkspaceAndAccount();
           } else {
             this.errorMessage = 'Error checking account. Please try again.';
           }
@@ -92,9 +87,9 @@ export class SignupComponent implements OnInit, OnDestroy {
   }
 
   /**
-   * Auto-create tenant and user account with default data
+  * Auto-create workspace and user account with default data
    */
-  private autoCreateTenantAndAccount(): void {
+  private autoCreateWorkspaceAndAccount(): void {
     if (!this.currentUser) {
       this.errorMessage = 'User not authenticated';
       return;
@@ -103,12 +98,6 @@ export class SignupComponent implements OnInit, OnDestroy {
     this.isLoading = true;
     this.errorMessage = '';
     this.successMessage = '';
-
-    // Use user's display name or email as default workspace name
-    const defaultWorkspaceName = this.getString(
-      this.currentUser?.displayName,
-      this.currentUser?.email?.split('@')[0] || 'My Workspace'
-    );
 
     const userData: UserAccountCreateRequest = {
       email: this.currentUser?.email,
@@ -125,56 +114,26 @@ export class SignupComponent implements OnInit, OnDestroy {
           const displayName = this.getString(this.currentUser?.displayName || this.currentUser?.email, 'User');
           this.successMessage = `Welcome, ${displayName}! Setting up your workspace...`;
           setTimeout(() => {
-            this.router.navigate(['/dashboard', userAccount.tenant_id]);
+            this.router.navigate(['/dashboard', userAccount.workspace_id]);
           }, 1500);
         },
         error: (error) => {
           this.isLoading = false;
-          console.error('Error creating tenant and account:', error);
+          console.error('Error creating workspace and account:', error);
           this.errorMessage = 'Failed to setup workspace. Please try again.';
         }
       });
   }
 
-  /**
-   * Sign up with Google
-   */
-  signupWithGoogle(): void {
+  continueWithGoogle(): void {
     this.errorMessage = '';
     this.successMessage = '';
-    
-    this.authService.signupWithGoogle()
-      .pipe(takeUntil(this.destroy$))
-      .subscribe({
-        next: (user) => {
-          this.successMessage = 'Signup successful! Please create your workspace...';
-        },
-        error: (error) => {
-          console.error('Signup error:', error);
-          if (error.code === 'auth/popup-closed-by-user') {
-            this.errorMessage = 'Signup cancelled by user';
-          } else if (error.code === 'auth/network-request-failed') {
-            this.errorMessage = 'Network error. Please check your connection.';
-          } else {
-            this.errorMessage = error.message || 'Failed to sign up. Please try again.';
-          }
-        }
-      });
-  }
 
-  /**
-   * Sign in with Google
-   */
-  signinWithGoogle(): void {
-    this.errorMessage = '';
-    this.successMessage = '';
-    
     this.authService.signinWithGoogle()
       .pipe(takeUntil(this.destroy$))
       .subscribe({
-        next: (user) => {
+        next: () => {
           this.successMessage = 'Sign in successful!';
-          // The checkUserAccount method will be called via the currentUser$ subscription
         },
         error: (error) => {
           console.error('Sign in error:', error);
@@ -199,52 +158,9 @@ export class SignupComponent implements OnInit, OnDestroy {
         next: () => {
           this.successMessage = 'Logged out successfully';
           this.currentUser = null;
-          this.showTenantForm = false;
-          this.tenantName = '';
         },
         error: (error: any) => {
           this.errorMessage = 'Failed to logout: ' + (error?.message || 'Unknown error');
-        }
-      });
-  }
-
-  createTenantAndAccount(): void {
-    if (!this.tenantName.trim()) {
-      this.errorMessage = 'Please enter a workspace name';
-      return;
-    }
-
-    if (!this.currentUser) {
-      this.errorMessage = 'User not authenticated';
-      return;
-    }
-
-    this.isLoading = true;
-    this.errorMessage = '';
-    this.successMessage = '';
-
-    const userData: UserAccountCreateRequest = {
-      email: this.currentUser?.email,
-      displayName: this.currentUser?.displayName || this.tenantName,
-      photoURL: this.currentUser?.photoURL,
-      uid: this.currentUser!.uid
-    };
-
-    this.userAccountService.createUserAccount(userData)
-      .pipe(takeUntil(this.destroy$))
-      .subscribe({
-        next: (userAccount) => {
-          this.isLoading = false;
-          this.successMessage = `Workspace created successfully! Redirecting...`;
-          setTimeout(() => {
-            this.showTenantForm = false;
-            this.router.navigate(['/dashboard', userAccount.tenant_id]);
-          }, 1500);
-        },
-        error: (error) => {
-          this.isLoading = false;
-          console.error('Error creating tenant/account:', error);
-          this.errorMessage = error.error?.message || 'Failed to create workspace. Please try again.';
         }
       });
   }

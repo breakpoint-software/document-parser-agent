@@ -1,80 +1,120 @@
-import { Component, OnInit, OnDestroy } from '@angular/core';
+import { Component, inject, Input, OnDestroy, OnInit } from '@angular/core';
 import { CommonModule } from '@angular/common';
-import { FormsModule } from '@angular/forms';
-import { ActivatedRoute, Router } from '@angular/router';
+import { FormArray, FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
+import { ActivatedRoute } from '@angular/router';
+import { MatButtonModule } from '@angular/material/button';
+import { MatCardModule } from '@angular/material/card';
+import { MatDialog, MatDialogModule } from '@angular/material/dialog';
+import { MatFormFieldModule } from '@angular/material/form-field';
+import { MatInputModule } from '@angular/material/input';
+import { MatSelectModule } from '@angular/material/select';
+import { MatSlideToggleModule } from '@angular/material/slide-toggle';
+import { MatTableModule } from '@angular/material/table';
+import {
+  LucideArrowLeft,
+  LucideChevronDown,
+  LucideChevronsUpDown,
+  LucideFileSpreadsheet,
+  LucideFolderOpen,
+  LucidePencil,
+  LucidePlus,
+  LucideSave,
+  LucideSearch,
+  LucideTrash2,
+  LucideX
+} from '@lucide/angular';
 import { Subject } from 'rxjs';
 import { takeUntil } from 'rxjs/operators';
-import { TenantService } from '../../services/tenant.service';
-import { FirebaseAuthService } from '../../services/firebase-auth.service';
 import { GooglePickerService, PickedItem } from '../../services/google-picker.service';
 import { GoogleDriveService } from '../../services/google-drive.service';
-import { GoogleAuthService } from '../../services/google-auth.service';
 import { RuleService } from '../../services/rule.service';
-import { Rule, RuleInput, TenantResponse } from '../../models';
+import { ExtractionSchemeField, Rule, RuleInput } from '../../models';
+import { ExtractionSchemeService } from '../../services/extraction-scheme';
+import { ConfirmDialogComponent } from '../confirm-dialog/confirm-dialog.component';
+import { StatusBanner } from '../../shared/components/status-banner/status-banner';
 
 @Component({
-  selector: 'app-unified-dashboard',
+  selector: 'app-rules-management',
   standalone: true,
-  imports: [CommonModule, FormsModule],
+  imports: [
+    CommonModule,
+    ReactiveFormsModule,
+    MatButtonModule,
+    MatCardModule,
+    MatDialogModule,
+    MatFormFieldModule,
+    MatInputModule,
+    MatSelectModule,
+    MatSlideToggleModule,
+    MatTableModule,
+    LucideArrowLeft,
+    LucideChevronDown,
+    LucideChevronsUpDown,
+    LucideFileSpreadsheet,
+    LucideFolderOpen,
+    LucidePencil,
+    LucidePlus,
+    LucideSave,
+    LucideSearch,
+    LucideTrash2,
+    LucideX,
+    StatusBanner
+  ],
   templateUrl: './unified-dashboard.component.html',
-  styleUrls: ['./unified-dashboard.component.css']
+  styleUrl: './unified-dashboard.component.scss'
 })
-export class UnifiedDashboardComponent implements OnInit, OnDestroy {
-  // Tenant info
-  tenant: TenantResponse | null = null;
-  isRulesPage = false;
+export class RulesManagementComponent implements OnInit, OnDestroy {
+  private static readonly ruleConditionFields = new Set([
+    'supplier_tax_id',
+    'buyer_tax_id',
+    'invoice_letter'
+  ]);
+  private readonly formBuilder = inject(FormBuilder);
+  private readonly dialog = inject(MatDialog);
+
+  @Input() workspaceId = '';
+  @Input() schemaId = 'arg-invoices';
+  @Input() embedded = false;
 
   // Rules management
   rules: Rule[] = [];
-  searchTerm = '';
-  statusFilter: 'all' | 'enabled' | 'disabled' = 'all';
-  sortOrder: 'newest' | 'oldest' | 'name' = 'newest';
   isLoading = false;
   errorMessage = '';
   successMessage = '';
   showAddForm = false;
   editingRule: Rule | null = null;
   deletingRuleId: string | null = null;
+  schemeFields: ExtractionSchemeField[] = [];
+
+  readonly filterForm = this.formBuilder.nonNullable.group({
+    searchTerm: '',
+    statusFilter: this.formBuilder.nonNullable.control<'all' | 'enabled' | 'disabled'>('all'),
+    sortOrder: this.formBuilder.nonNullable.control<'newest' | 'oldest' | 'name'>('newest')
+  });
+  readonly createRuleForm = this.buildRuleForm();
+  readonly editRuleForm = this.buildRuleForm();
 
   // Google Picker states
   pickerReady = false;
   pickerSelection: {
-    field: 'source' | 'target' | 'sheet';
+    field: 'target' | 'sheet';
     mode: 'create' | 'edit';
   } | null = null;
 
-  newRule: Partial<Rule> = {
-    rule_name: '',
-    source_folder_id: '',
-    source_folder_name: '',
-    target_folder_id: '',
-    target_folder_name: '',
-    target_sheet_id: '',
-    target_sheet_name: '',
-    sheet_tab_name: '',
-    is_enabled: true
-  };
-
   private destroy$ = new Subject<void>();
-  private tenantId: string = '';
-
   constructor(
-    private tenantService: TenantService,
-    private authService: FirebaseAuthService,
-    private googleAuthService: GoogleAuthService,
     private googlePickerService: GooglePickerService,
     private googleDriveService: GoogleDriveService,
     private ruleService: RuleService,
-    private route: ActivatedRoute,
-    private router: Router
+    private extractionSchemeService: ExtractionSchemeService,
+    private route: ActivatedRoute
   ) {}
 
   ngOnInit(): void {
-    this.tenantId = this.route.snapshot.paramMap.get('tenantId') || '';
-    this.isRulesPage = this.route.snapshot.routeConfig?.path?.startsWith('rules/') ?? false;
+    this.workspaceId ||= this.route.snapshot.paramMap.get('workspaceId') || '';
 
-    if (!this.tenantId || this.tenantId === 'tenant') {
-      this.errorMessage = 'Invalid tenant ID';
+    if (!this.workspaceId) {
+      this.errorMessage = 'Invalid workspace ID';
       return;
     }
 
@@ -82,12 +122,8 @@ export class UnifiedDashboardComponent implements OnInit, OnDestroy {
   }
 
   private initializePage(): void {
-    if (!this.isRulesPage) {
-      this.loadTenant();
-    }
-
-    // Load rules
     this.loadRules();
+    this.loadScheme();
 
     // Monitor Google Picker readiness
     this.googlePickerService.pickerReady$
@@ -103,15 +139,12 @@ export class UnifiedDashboardComponent implements OnInit, OnDestroy {
         if (items.length > 0 && this.pickerSelection) {
           const item = items[0];
           const selection = this.pickerSelection;
-          const ruleDraft = selection.mode === 'edit' ? this.editingRule : this.newRule;
 
           this.googleDriveService.getFullPath(item.id)
             .pipe(takeUntil(this.destroy$))
             .subscribe({
               next: fullPath => {
-                if (ruleDraft) {
-                  this.applyPickedItem(ruleDraft, selection.field, item, fullPath);
-                }
+                this.applyPickedItem(selection.mode, selection.field, item, fullPath);
                 this.pickerSelection = null;
               },
               error: error => {
@@ -125,54 +158,26 @@ export class UnifiedDashboardComponent implements OnInit, OnDestroy {
   }
 
   private applyPickedItem(
-    rule: Partial<Rule>,
-    field: 'source' | 'target' | 'sheet',
+    mode: 'create' | 'edit',
+    field: 'target' | 'sheet',
     item: PickedItem,
     fullPath: string
   ): void {
-    if (field === 'source') {
-      rule.source_folder_id = item.id;
-      rule.source_folder_name = fullPath;
-    } else if (field === 'target') {
-      rule.target_folder_id = item.id;
-      rule.target_folder_name = fullPath;
+    const form = mode === 'edit' ? this.editRuleForm : this.createRuleForm;
+
+    if (field === 'target') {
+      form.patchValue({ target_folder_id: item.id, target_folder_name: fullPath });
     } else {
-      rule.target_sheet_id = item.id;
-      rule.target_sheet_name = fullPath;
+      form.patchValue({ target_sheet_id: item.id, target_sheet_name: fullPath });
     }
   }
 
   /**
-   * Load tenant data
-   */
-  loadTenant(): void {
-    this.isLoading = true;
-    this.errorMessage = '';
-
-    this.tenantService.getTenant(this.tenantId)
-      .pipe(takeUntil(this.destroy$))
-      .subscribe({
-        next: (response) => {
-          this.tenant = response;
-          this.isLoading = false;
-        },
-        error: (error) => {
-          this.isLoading = false;
-          console.error('Error loading tenant:', error);
-          this.errorMessage = 'Failed to load tenant. Redirecting...';
-          setTimeout(() => {
-            this.router.navigate(['/signup']);
-          }, 2000);
-        }
-      });
-  }
-
-  /**
-   * Load rules for tenant
+  * Load rules for workspace
    */
   loadRules(): void {
     this.isLoading = true;
-    this.ruleService.getRules(this.tenantId)
+    this.ruleService.getRules(this.workspaceId)
       .pipe(takeUntil(this.destroy$))
       .subscribe({
         next: rules => {
@@ -187,11 +192,12 @@ export class UnifiedDashboardComponent implements OnInit, OnDestroy {
   }
 
   get filteredRules(): Rule[] {
-    const query = this.searchTerm.trim().toLowerCase();
+    const { searchTerm, statusFilter, sortOrder } = this.filterForm.getRawValue();
+    const query = searchTerm.trim().toLowerCase();
     const filteredRules = this.rules.filter(rule => {
-      const matchesStatus = this.statusFilter === 'all'
-        || (this.statusFilter === 'enabled' && rule.is_enabled)
-        || (this.statusFilter === 'disabled' && !rule.is_enabled);
+      const matchesStatus = statusFilter === 'all'
+        || (statusFilter === 'enabled' && rule.is_enabled)
+        || (statusFilter === 'disabled' && !rule.is_enabled);
       const matchesSearch = !query || [
         rule.rule_name,
         rule.source_folder_id,
@@ -203,13 +209,13 @@ export class UnifiedDashboardComponent implements OnInit, OnDestroy {
     });
 
     return filteredRules.sort((firstRule, secondRule) => {
-      if (this.sortOrder === 'name') {
+      if (sortOrder === 'name') {
         return firstRule.rule_name.localeCompare(secondRule.rule_name);
       }
 
       const firstUpdated = firstRule.updated_at?.getTime() ?? 0;
       const secondUpdated = secondRule.updated_at?.getTime() ?? 0;
-      return this.sortOrder === 'newest'
+      return sortOrder === 'newest'
         ? secondUpdated - firstUpdated
         : firstUpdated - secondUpdated;
     });
@@ -218,19 +224,13 @@ export class UnifiedDashboardComponent implements OnInit, OnDestroy {
   /**
    * Open Google Picker for folder selection
    */
-  openFolderPicker(folderType: 'source' | 'target', mode: 'create' | 'edit' = 'create'): void {
-    console.log('🎯 Opening folder picker for:', folderType);
-    console.log('   Picker ready:', this.pickerReady);
-    console.log('   Access token:', sessionStorage.getItem('access_token') ? 'Present' : 'Missing');
-
+  openFolderPicker(folderType: 'target', mode: 'create' | 'edit' = 'create'): void {
     if (!this.pickerReady) {
       this.errorMessage = 'Google Picker is not ready yet. Please wait a moment and try again.';
-      console.error('❌ Picker not ready. Status:', this.pickerReady);
       return;
     }
 
     this.pickerSelection = { field: folderType, mode };
-    console.log('✅ Calling openFolderPicker on service');
     this.googlePickerService.openFolderPicker();
   }
 
@@ -245,43 +245,22 @@ export class UnifiedDashboardComponent implements OnInit, OnDestroy {
   }
 
   /**
-   * Copy tenant ID to clipboard
-   */
-  copyTenantId(): void {
-    if (this.tenant?.id) {
-      navigator.clipboard.writeText(this.tenant.id).then(() => {
-        this.successMessage = 'Tenant ID copied to clipboard!';
-        setTimeout(() => {
-          this.successMessage = '';
-        }, 3000);
-      });
-    }
-  }
-
-  /**
    * Add new rule
    */
   addRule(): void {
-    if (!this.validateRule()) {
+    if (this.createRuleForm.invalid) {
+      this.createRuleForm.markAllAsTouched();
+      this.errorMessage = 'Complete all required rule fields.';
       return;
     }
 
     this.isLoading = true;
     this.errorMessage = '';
+    this.successMessage = '';
 
-    const rule: RuleInput = {
-      rule_name: this.newRule.rule_name || '',
-      source_folder_id: this.newRule.source_folder_id || '',
-      source_folder_name: this.newRule.source_folder_name || '',
-      target_folder_id: this.newRule.target_folder_id || '',
-      target_folder_name: this.newRule.target_folder_name || '',
-      target_sheet_id: this.newRule.target_sheet_id || '',
-      target_sheet_name: this.newRule.target_sheet_name || '',
-      sheet_tab_name: this.newRule.sheet_tab_name || '',
-      is_enabled: this.newRule.is_enabled ?? true
-    };
+    const rule: RuleInput = this.toRuleInput(this.createRuleForm.getRawValue());
 
-    this.ruleService.createRule(this.tenantId, rule)
+    this.ruleService.createRule(this.workspaceId, rule)
       .pipe(takeUntil(this.destroy$))
       .subscribe({
         next: createdRule => {
@@ -289,7 +268,7 @@ export class UnifiedDashboardComponent implements OnInit, OnDestroy {
           this.isLoading = false;
           this.successMessage = 'Rule added successfully!';
           this.showAddForm = false;
-          this.resetForm();
+          this.resetCreateForm();
         },
         error: error => {
           this.isLoading = false;
@@ -304,8 +283,9 @@ export class UnifiedDashboardComponent implements OnInit, OnDestroy {
   updateRule(rule: Rule): void {
     this.isLoading = true;
     this.errorMessage = '';
+    this.successMessage = '';
 
-    this.ruleService.updateRule(this.tenantId, rule.rule_id, rule)
+    this.ruleService.updateRule(this.workspaceId, rule.rule_id, rule)
       .pipe(takeUntil(this.destroy$))
       .subscribe({
         next: updatedRule => {
@@ -326,11 +306,28 @@ export class UnifiedDashboardComponent implements OnInit, OnDestroy {
   startEditingRule(rule: Rule): void {
     this.showAddForm = false;
     this.errorMessage = '';
-    this.editingRule = { ...rule };
+    this.editingRule = rule;
+    this.editRuleForm.reset({
+      rule_name: rule.rule_name,
+      target_folder_id: rule.target_folder_id,
+      target_folder_name: rule.target_folder_name || '',
+      target_sheet_id: rule.target_sheet_id,
+      target_sheet_name: rule.target_sheet_name || '',
+      sheet_tab_name: rule.sheet_tab_name,
+      priority: rule.priority ?? 100,
+      condition_mode: rule.condition_mode ?? 'all',
+      is_enabled: rule.is_enabled
+    });
+    this.setConditions(this.editRuleForm.controls.conditions, rule.conditions);
   }
 
   saveEditedRule(): void {
-    if (!this.editingRule || !this.validateRule(this.editingRule)) {
+    if (!this.editingRule) {
+      return;
+    }
+    if (this.editRuleForm.invalid) {
+      this.editRuleForm.markAllAsTouched();
+      this.errorMessage = 'Complete all required rule fields.';
       return;
     }
 
@@ -340,11 +337,12 @@ export class UnifiedDashboardComponent implements OnInit, OnDestroy {
       return;
     }
 
-    this.updateRule(this.editingRule);
+    this.updateRule({ ...this.editingRule, ...this.toRuleInput(this.editRuleForm.getRawValue()) });
   }
 
   cancelEditingRule(): void {
     this.editingRule = null;
+    this.editRuleForm.reset();
     this.errorMessage = '';
   }
 
@@ -352,15 +350,30 @@ export class UnifiedDashboardComponent implements OnInit, OnDestroy {
    * Delete rule
    */
   deleteRule(ruleId: string): void {
-    if (!confirm('Are you sure you want to delete this rule?')) {
-      return;
-    }
+    const ruleName = this.rules.find(rule => rule.rule_id === ruleId)?.rule_name || 'this rule';
+    this.dialog.open(ConfirmDialogComponent, {
+      data: {
+        title: 'Delete rule?',
+        message: `Delete ${ruleName}? This action cannot be undone.`,
+        confirmLabel: 'Delete'
+      },
+      restoreFocus: true
+    }).afterClosed()
+      .pipe(takeUntil(this.destroy$))
+      .subscribe(confirmed => {
+        if (confirmed) {
+          this.deleteRuleConfirmed(ruleId);
+        }
+      });
+  }
 
+  private deleteRuleConfirmed(ruleId: string): void {
     this.isLoading = true;
-  this.deletingRuleId = ruleId;
+    this.deletingRuleId = ruleId;
     this.errorMessage = '';
+    this.successMessage = '';
 
-    this.ruleService.deleteRule(this.tenantId, ruleId)
+    this.ruleService.deleteRule(this.workspaceId, ruleId)
       .pipe(takeUntil(this.destroy$))
       .subscribe({
         next: () => {
@@ -384,48 +397,113 @@ export class UnifiedDashboardComponent implements OnInit, OnDestroy {
     this.updateRule({ ...rule, is_enabled: !rule.is_enabled });
   }
 
-  /**
-   * Validate rule form
-   */
-  private validateRule(rule: Partial<Rule> = this.newRule): boolean {
-    if (!rule.rule_name?.trim()) {
-      this.errorMessage = 'Please enter a rule name';
-      return false;
-    }
-    if (!rule.source_folder_id?.trim()) {
-      this.errorMessage = 'Please select a source folder';
-      return false;
-    }
-    if (!rule.target_folder_id?.trim()) {
-      this.errorMessage = 'Please select a target folder';
-      return false;
-    }
-    if (!rule.target_sheet_id?.trim()) {
-      this.errorMessage = 'Please enter target sheet ID';
-      return false;
-    }
-    if (!rule.sheet_tab_name?.trim()) {
-      this.errorMessage = 'Please enter sheet tab name';
-      return false;
-    }
-    return true;
+  private buildRuleForm() {
+    return this.formBuilder.nonNullable.group({
+      rule_name: ['', [Validators.required, Validators.maxLength(120)]],
+      target_folder_id: ['', Validators.required],
+      target_folder_name: ['', Validators.required],
+      target_sheet_id: [''],
+      target_sheet_name: [''],
+      sheet_tab_name: ['', Validators.maxLength(100)],
+      priority: [100, [Validators.required, Validators.min(0)]],
+      condition_mode: this.formBuilder.nonNullable.control<'all' | 'any'>('all'),
+      conditions: this.formBuilder.array([this.buildConditionForm()]),
+      is_enabled: true
+    });
   }
 
-  /**
-   * Reset form
-   */
-  private resetForm(): void {
-    this.newRule = {
-      rule_name: '',
+  private buildConditionForm() {
+    return this.formBuilder.nonNullable.group({
+      field: ['', Validators.required],
+      operator: ['', Validators.required],
+      value: ['', Validators.required]
+    });
+  }
+
+  addCondition(mode: 'create' | 'edit'): void {
+    this.conditionControls(mode).push(this.buildConditionForm());
+  }
+
+  removeCondition(mode: 'create' | 'edit', index: number): void {
+    const conditions = this.conditionControls(mode);
+    if (conditions.length > 1) conditions.removeAt(index);
+  }
+
+  conditionControls(mode: 'create' | 'edit'): FormArray<ReturnType<RulesManagementComponent['buildConditionForm']>> {
+    return mode === 'create' ? this.createRuleForm.controls.conditions : this.editRuleForm.controls.conditions;
+  }
+
+  operatorsFor(fieldKey: string): string[] {
+    return this.schemeFields.find(field => field.key === fieldKey)?.operators ?? [];
+  }
+
+  operatorLabel(operator: string): string {
+    const label = operator.replaceAll('_', ' ');
+    return label ? label[0].toUpperCase() + label.slice(1) : '';
+  }
+
+  valueInputType(fieldKey: string): 'date' | 'time' | 'number' | 'text' {
+    const field = this.schemeFields.find(candidate => candidate.key === fieldKey);
+    const format = field?.format
+      || (fieldKey === 'date' || fieldKey.endsWith('_date') ? 'date' : undefined)
+      || (fieldKey === 'time' || fieldKey.endsWith('_time') ? 'time' : undefined);
+
+    if (format === 'date' || format === 'time') return format;
+    if (field?.types.some(type => type === 'number' || type === 'integer')) return 'number';
+    return 'text';
+  }
+
+  private setConditions(
+    formArray: FormArray<ReturnType<RulesManagementComponent['buildConditionForm']>>,
+    conditions: Rule['conditions']
+  ): void {
+    formArray.clear();
+    for (const condition of conditions?.length ? conditions : [{ field: '', operator: '', value: '' }]) {
+      const form = this.buildConditionForm();
+      form.patchValue({ ...condition, value: String(condition.value ?? '') });
+      formArray.push(form);
+    }
+  }
+
+  private toRuleInput(value: ReturnType<typeof this.createRuleForm.getRawValue>): RuleInput {
+    return {
+      ...value,
       source_folder_id: '',
       source_folder_name: '',
+      schema_id: this.schemaId,
+      actions: {
+        move_to_folder: Boolean(value.target_folder_id),
+        append_to_sheet: Boolean(value.target_sheet_id)
+      }
+    };
+  }
+
+  private loadScheme(): void {
+    this.extractionSchemeService.getScheme(this.schemaId)
+      .pipe(takeUntil(this.destroy$))
+      .subscribe({
+        next: scheme => {
+          this.schemeFields = scheme.fields.filter(field =>
+            RulesManagementComponent.ruleConditionFields.has(field.key)
+          );
+        },
+        error: error => this.errorMessage = error.error?.error || 'Failed to load extraction scheme fields.'
+      });
+  }
+
+  private resetCreateForm(): void {
+    this.createRuleForm.reset({
+      rule_name: '',
       target_folder_id: '',
       target_folder_name: '',
       target_sheet_id: '',
       target_sheet_name: '',
       sheet_tab_name: '',
+      priority: 100,
+      condition_mode: 'all',
       is_enabled: true
-    };
+    });
+    this.setConditions(this.createRuleForm.controls.conditions, undefined);
   }
 
   /**
@@ -433,31 +511,8 @@ export class UnifiedDashboardComponent implements OnInit, OnDestroy {
    */
   cancelAddRule(): void {
     this.showAddForm = false;
-    this.resetForm();
+    this.resetCreateForm();
     this.errorMessage = '';
-  }
-
-  /**
-   * Navigate to drive explorer
-   */
-  navigateToDriveExplorer(): void {
-    this.router.navigate(['/drive-explorer']);
-  }
-
-  /**
-   * Logout
-   */
-  logout(): void {
-    this.authService.logout()
-      .pipe(takeUntil(this.destroy$))
-      .subscribe({
-        next: () => {
-          this.router.navigate(['/signup']);
-        },
-        error: (error) => {
-          this.errorMessage = 'Failed to logout: ' + error.message;
-        }
-      });
   }
 
   ngOnDestroy(): void {

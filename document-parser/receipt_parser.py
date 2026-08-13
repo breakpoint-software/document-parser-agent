@@ -16,6 +16,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--input", default="documents", help="Folder containing documents to process.")
     parser.add_argument("--output", help="Optional output JSON file. Prints to stdout when omitted.")
     parser.add_argument("--model", default=os.getenv("OPENAI_MODEL", "gpt-4o"), help="OpenAI model name.")
+    parser.add_argument("--schema-id", required=True, help="Extraction schema ID configured in Firestore.")
     return parser.parse_args()
 
 
@@ -36,14 +37,14 @@ def main() -> int:
 
         if is_image_document(file_path):
             image_data_uri = to_data_uri(file_path)
-            result = extract_receipt_json_from_image(client, args.model, file_path, image_data_uri)
+            result = extract_receipt_json_from_image(client, args.model, file_path, image_data_uri, args.schema_id)
         else:
             text = extract_text(file_path)
             if not text.strip():
                 results.append(build_empty_result(relative_name))
                 continue
 
-            result = extract_receipt_json(client, args.model, file_path, text)
+            result = extract_receipt_json(client, args.model, file_path, text, args.schema_id)
 
         result["source_file"] = relative_name
         results.append(result)

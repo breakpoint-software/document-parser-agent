@@ -1,0 +1,19 @@
+{
+  "name": "Document Parser UI",
+  "short_name": "DocParser",
+  "description": "Manage document parsing workflows, sources, and extraction rules.",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "background_color": "#ffffff",
+  "theme_color": "#10a37f",
+  "icons": [
+    {
+      "src": "docparser-mark.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ],
+  "categories": ["productivity", "business"]
+}

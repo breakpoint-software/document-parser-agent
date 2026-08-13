@@ -1,12 +1,13 @@
-const RULE_FIELDS = ['rule_name', 'source_folder_id', 'source_folder_name', 'target_folder_id', 'target_folder_name', 'target_sheet_id', 'target_sheet_name', 'sheet_tab_name', 'schema_id', 'is_enabled'];
-const REQUIRED_RULE_FIELDS = ['rule_name', 'source_folder_id', 'target_folder_id', 'target_sheet_id', 'sheet_tab_name'];
+const RULE_FIELDS = ['rule_name', 'source_folder_id', 'source_folder_name', 'target_folder_id', 'target_folder_name', 'target_sheet_id', 'target_sheet_name', 'sheet_tab_name', 'schema_id', 'is_enabled', 'priority', 'condition_mode', 'conditions', 'actions'];
+const REQUIRED_RULE_FIELDS = ['rule_name', 'source_folder_id', 'target_folder_id', 'target_sheet_id', 'sheet_tab_name', 'schema_id', 'is_enabled', 'priority', 'condition_mode', 'conditions', 'actions'];
+const NON_EMPTY_RULE_FIELDS = ['rule_name', 'target_folder_id', 'schema_id', 'condition_mode'];
 
 function serializeValue(value) {
   return value && typeof value.toDate === 'function' ? value.toDate().toISOString() : value;
 }
 
 function serializeRule(id, data) {
-  return Object.fromEntries(Object.entries({ rule_id: id, ...data }).map(([key, value]) => [key, serializeValue(value)]));
+  return Object.fromEntries(Object.entries({ ...data, rule_id: id }).map(([key, value]) => [key, serializeValue(value)]));
 }
 
 function getPayload(body) {
@@ -17,11 +18,13 @@ function getPayload(body) {
 }
 
 function missingFields(rule) {
-  return REQUIRED_RULE_FIELDS.filter(field => typeof rule[field] !== 'string' || !rule[field]);
+  return REQUIRED_RULE_FIELDS.filter(field =>
+    rule[field] === undefined || rule[field] === null || (NON_EMPTY_RULE_FIELDS.includes(field) && rule[field] === '')
+  );
 }
 
 function createRuleController({ admin, db }) {
-  const rules = req => db.collection('tenants').doc(req.user.uid).collection('rules');
+  const rules = req => db.collection('workspaces').doc(req.user.uid).collection('rules');
 
   async function listRules(req, res) {
     const snapshot = await rules(req).orderBy('updated_at', 'desc').get();
@@ -33,7 +36,6 @@ function createRuleController({ admin, db }) {
     const missing = missingFields(payload);
     if (missing.length) return res.status(400).json({ error: `Missing required fields: ${missing.join(', ')}` });
     Object.assign(payload, {
-      is_enabled: payload.is_enabled ?? true,
       created_at: admin.firestore.FieldValue.serverTimestamp(),
       updated_at: admin.firestore.FieldValue.serverTimestamp()
     });

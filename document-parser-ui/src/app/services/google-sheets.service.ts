@@ -24,23 +24,14 @@ export class GoogleSheetsService {
    */
   private decodeToken(token: string): any {
     try {
-      console.log('🔍 Attempting to decode token...');
-      console.log('   Token type:', typeof token);
-      console.log('   Token length:', token.length);
-      console.log('   Token starts with:', token.substring(0, 30) + '...');
-      
       const parts = token.split('.');
-      console.log('   Parts count:', parts.length);
       
       if (parts.length !== 3) {
         console.error('   ❌ Invalid JWT format - expected 3 parts, got', parts.length);
-        console.log('   First 100 chars:', token.substring(0, 100));
         return null;
       }
       
       const decoded = JSON.parse(atob(parts[1]));
-      console.log('   ✅ Token decoded successfully');
-      console.log('   Scope:', decoded.scope);
       return decoded;
     } catch (e) {
       console.error('   ❌ Error decoding token:', e);
@@ -60,8 +51,6 @@ export class GoogleSheetsService {
       // Token is not a JWT (likely an opaque token from Firebase)
       // This is actually OK - Firebase access tokens are often opaque
       // We'll just check if it looks valid (has content)
-      console.log('🔐 Token is opaque (not JWT format)');
-      console.log('   This is normal for Firebase-issued Google access tokens');
       return {
         valid: true,
         message: 'Token is valid (opaque format)',
@@ -154,17 +143,11 @@ export class GoogleSheetsService {
 
     // Validate token before making API call
     const tokenCheck = this.checkTokenScopes(accessToken);
-    console.log('🔐 Token Check:', tokenCheck);
 
     if (!tokenCheck.valid) {
       console.error('❌', tokenCheck.message);
       return throwError(() => new Error(tokenCheck.message));
     }
-
-    console.log('📖 Reading from sheet:');
-    console.log('   Spreadsheet ID:', spreadsheetId);
-    console.log('   Range:', range);
-    console.log('   Full URL:', `${this.SHEETS_API_URL}/${spreadsheetId}/values/${range}`);
 
     const headers = new HttpHeaders({
       'Authorization': `Bearer ${accessToken}`, 
@@ -270,11 +253,6 @@ export class GoogleSheetsService {
       console.error('❌', tokenCheck.message);
       return throwError(() => new Error(tokenCheck.message));
     }
-
-    console.log('📝 Batch updating sheet:');
-    console.log('   Spreadsheet ID:', spreadsheetId);
-    console.log('   Range:', range);
-    console.log('   Values:', values);
 
     const headers = new HttpHeaders({
       'Authorization': `Bearer ${accessToken}`,

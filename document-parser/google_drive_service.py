@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import logging
-import os
 import re
 import tempfile
 from dataclasses import dataclass
@@ -67,25 +66,11 @@ class GoogleDriveConfigError(RuntimeError):
     """Raised when required Google Drive environment configuration is missing or invalid."""
 
 
-def load_drive_folder_ids_from_env(env_var: str = "GOOGLE_DRIVE_FOLDER_IDS") -> list[str]:
-    raw = (os.getenv(env_var) or "").strip()
-    if not raw:
-        raise GoogleDriveConfigError(f"Missing {env_var}. Set one or more folder IDs separated by commas.")
-
-    folder_ids = [item.strip() for item in raw.split(",") if item.strip()]
-    if not folder_ids:
-        raise GoogleDriveConfigError(f"{env_var} is empty after parsing.")
-
-    logger.info("Loaded %s folder id(s) from env var %s", len(folder_ids), env_var)
-
-    return folder_ids
-
-
 def build_drive_credentials(refresh_token: str | None = None) -> Credentials:
     """Build Google Drive credentials.
     
     Args:
-        refresh_token: Tenant OAuth refresh token. Falls back to GOOGLE_REFRESH_TOKEN.
+        refresh_token: Workspace OAuth refresh token. Falls back to GOOGLE_REFRESH_TOKEN.
     """
     try:
         return build_google_oauth_credentials(refresh_token, GOOGLE_OAUTH_SCOPES)
@@ -102,8 +87,8 @@ def build_drive_service(
     
     Args:
         scope: OAuth scope for the credentials
-        refresh_token: Optional tenant OAuth refresh token.
-        credentials: Optional prebuilt tenant OAuth credentials.
+        refresh_token: Optional workspace OAuth refresh token.
+        credentials: Optional prebuilt workspace OAuth credentials.
     """
     try:
         from googleapiclient.discovery import build

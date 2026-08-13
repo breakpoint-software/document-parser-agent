@@ -37,11 +37,12 @@ function createGoogleAuthMiddleware({ auth, googleClient }) {
   };
 }
 
-function requireOwnTenant(req, res, next) {
-  if (req.params.tenantId !== req.user.uid) {
+function requireOwnWorkspace(req, res, next) {
+  const workspaceId = req.params.workspaceId;
+  if (workspaceId !== req.user.uid) {
     return res.status(403).json({
-      error: 'You do not have access to this tenant',
-      code: 'TENANT_ACCESS_DENIED'
+      error: 'You do not have access to this workspace',
+      code: 'WORKSPACE_ACCESS_DENIED'
     });
   }
   return next();
@@ -58,4 +59,4 @@ function requireOwnUser(req, res, next) {
   return next();
 }
 
-module.exports = { createGoogleAuthMiddleware, requireOwnTenant, requireOwnUser };
+module.exports = { createGoogleAuthMiddleware, requireOwnWorkspace, requireOwnUser };

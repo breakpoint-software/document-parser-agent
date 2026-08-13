@@ -1,61 +1,214 @@
-name: Build to Docker Hub and Deploy to Cloud Run
+name: Build and deploy services
 
 on:
   push:
-    branches: [ "main" ]
+    branches: [main]
+    paths:
+      - document-parser/**
+      - document-parser-api/**
+      - document-parser-ui/**
+      - .github/workflows/docker-image.yml
+  workflow_dispatch:
 
 env:
-  # Docker Hub Image details matching your Cloud Run UI configuration
-  DOCKERHUB_IMAGE: "breakpointsoftware/document-parser-agent-api"
-  
-  # Cloud Run details
-  SERVICE_NAME: "document-parser-agent-api-1"
-  REGION: "us-central1" # Change to your Cloud Run region if different
-  PORT: "8000"
+  PROCESSOR_IMAGE: breakpointsoftware/document-parser-agent-api
+  API_IMAGE: breakpointsoftware/document-parser-api
+  UI_IMAGE: breakpointsoftware/document-parser-ui
+  PROCESSOR_SERVICE: document-parser-agent-api-1
+  API_SERVICE: document-parser-api
+  UI_SERVICE: document-parser-ui
+  REGION: us-central1
+
+concurrency:
+  group: deploy-main
+  cancel-in-progress: false
 
 jobs:
   build-and-deploy:
     runs-on: ubuntu-latest
-
     permissions:
-      contents: 'read'
-      id-token: 'write' # Required for GCP OIDC Authentication
+      contents: read
+      id-token: write
 
     steps:
-      # 1. Checkout repository code
-      - name: Checkout Code
+      - name: Checkout repository
         uses: actions/checkout@v4
 
-      # 2. Log in to Docker Hub
+      - name: Detect changed services
+        id: changes
+        uses: dorny/paths-filter@v3
+        with:
+          filters: |
+            processor:
+              - 'document-parser/**'
+            api:
+              - 'document-parser-api/**'
+            ui:
+              - 'document-parser-ui/**'
+
+      - name: Validate deployment configuration
+        if: |
+          github.event_name == 'workflow_dispatch' ||
+          steps.changes.outputs.processor == 'true' ||
+          steps.changes.outputs.api == 'true' ||
+          steps.changes.outputs.ui == 'true'
+        shell: bash
+        env:
+          OPENAI_MODEL: ${{ vars.OPENAI_MODEL }}
+          FIREBASE_WORKSPACES_COLLECTION: ${{ vars.FIREBASE_WORKSPACES_COLLECTION }}
+          FIREBASE_EXTRACTION_SCHEMES_COLLECTION: ${{ vars.FIREBASE_EXTRACTION_SCHEMES_COLLECTION }}
+          GOOGLE_DRIVE_INVOICES_BASE_PATH: ${{ vars.GOOGLE_DRIVE_INVOICES_BASE_PATH }}
+          FIREBASE_DATABASE_URL: ${{ vars.FIREBASE_DATABASE_URL }}
+          FIREBASE_API_KEY: ${{ vars.FIREBASE_API_KEY }}
+          FIREBASE_AUTH_DOMAIN: ${{ vars.FIREBASE_AUTH_DOMAIN }}
+          FIREBASE_PROJECT_ID: ${{ vars.FIREBASE_PROJECT_ID }}
+          FIREBASE_STORAGE_BUCKET: ${{ vars.FIREBASE_STORAGE_BUCKET }}
+          FIREBASE_MESSAGING_SENDER_ID: ${{ vars.FIREBASE_MESSAGING_SENDER_ID }}
+          FIREBASE_APP_ID: ${{ vars.FIREBASE_APP_ID }}
+          GOOGLE_CLIENT_ID: ${{ vars.GOOGLE_CLIENT_ID }}
+          GOOGLE_PICKER_API_KEY: ${{ vars.GOOGLE_PICKER_API_KEY }}
+          GOOGLE_SERVICE_ACCOUNT_EMAIL: ${{ vars.GOOGLE_SERVICE_ACCOUNT_EMAIL }}
+          ORCHESTRATOR_API_KEY_SECRET: ${{ vars.ORCHESTRATOR_API_KEY_SECRET }}
+          OPENAI_API_KEY_SECRET: ${{ vars.OPENAI_API_KEY_SECRET }}
+          FIREBASE_SERVICE_ACCOUNT_SECRET: ${{ vars.FIREBASE_SERVICE_ACCOUNT_SECRET }}
+          GOOGLE_CLIENT_SECRET_SECRET: ${{ vars.GOOGLE_CLIENT_SECRET_SECRET }}
+        run: |
+          required=(
+            OPENAI_MODEL FIREBASE_WORKSPACES_COLLECTION FIREBASE_EXTRACTION_SCHEMES_COLLECTION
+            GOOGLE_DRIVE_INVOICES_BASE_PATH FIREBASE_DATABASE_URL FIREBASE_API_KEY
+            FIREBASE_AUTH_DOMAIN FIREBASE_PROJECT_ID FIREBASE_STORAGE_BUCKET
+            FIREBASE_MESSAGING_SENDER_ID FIREBASE_APP_ID GOOGLE_CLIENT_ID
+            GOOGLE_PICKER_API_KEY GOOGLE_SERVICE_ACCOUNT_EMAIL ORCHESTRATOR_API_KEY_SECRET
+            OPENAI_API_KEY_SECRET FIREBASE_SERVICE_ACCOUNT_SECRET GOOGLE_CLIENT_SECRET_SECRET
+          )
+          for name in "${required[@]}"; do
+            if [[ -z "${!name}" ]]; then
+              echo "Missing required repository variable: ${name}" >&2
+              exit 1
+            fi
+          done
+
       - name: Log in to Docker Hub
+        if: |
+          github.event_name == 'workflow_dispatch' ||
+          steps.changes.outputs.processor == 'true' ||
+          steps.changes.outputs.api == 'true' ||
+          steps.changes.outputs.ui == 'true'
         uses: docker/login-action@v3
         with:
           username: ${{ secrets.DOCKERHUB_USERNAME }}
           password: ${{ secrets.DOCKERHUB_TOKEN }}
 
-      # 3. Build and Push Docker image from the "document-parser" subfolder
-      - name: Build and Push to Docker Hub
-        uses: docker/build-push-action@v5
+      - name: Build and push processor
+        if: github.event_name == 'workflow_dispatch' || steps.changes.outputs.processor == 'true'
+        uses: docker/build-push-action@v6
         with:
-          context: ./document-parser         # <--- Subfolder containing your app code
-          file: ./document-parser/Dockerfile # <--- Subfolder containing Dockerfile
+          context: ./document-parser
+          file: ./document-parser/Dockerfile
           push: true
           tags: |
-            ${{ env.DOCKERHUB_IMAGE }}:latest
-            ${{ env.DOCKERHUB_IMAGE }}:${{ github.sha }}
+            ${{ env.PROCESSOR_IMAGE }}:latest
+            ${{ env.PROCESSOR_IMAGE }}:${{ github.sha }}
 
-      # 4. Authenticate to Google Cloud
+      - name: Build and push API
+        if: github.event_name == 'workflow_dispatch' || steps.changes.outputs.api == 'true'
+        uses: docker/build-push-action@v6
+        with:
+          context: ./document-parser-api
+          file: ./document-parser-api/Dockerfile
+          push: true
+          tags: |
+            ${{ env.API_IMAGE }}:latest
+            ${{ env.API_IMAGE }}:${{ github.sha }}
+
+      - name: Build and push UI
+        if: github.event_name == 'workflow_dispatch' || steps.changes.outputs.ui == 'true'
+        uses: docker/build-push-action@v6
+        with:
+          context: ./document-parser-ui
+          file: ./document-parser-ui/Dockerfile
+          push: true
+          tags: |
+            ${{ env.UI_IMAGE }}:latest
+            ${{ env.UI_IMAGE }}:${{ github.sha }}
+
       - name: Authenticate to Google Cloud
-        uses: google-github-actions/auth@v2
+        if: |
+          github.event_name == 'workflow_dispatch' ||
+          steps.changes.outputs.processor == 'true' ||
+          steps.changes.outputs.api == 'true' ||
+          steps.changes.outputs.ui == 'true'
+        uses: google-github-actions/auth@v3
         with:
           workload_identity_provider: ${{ secrets.GCP_WORKLOAD_IDENTITY_PROVIDER }}
           service_account: ${{ secrets.GCP_SERVICE_ACCOUNT }}
 
-      # 5. Deploy Docker Hub Image to Google Cloud Run
-      - name: Deploy to Cloud Run
-        uses: google-github-actions/deploy-cloudrun@v2
+      - name: Deploy processor
+        if: github.event_name == 'workflow_dispatch' || steps.changes.outputs.processor == 'true'
+        uses: google-github-actions/deploy-cloudrun@v3
         with:
-          service: ${{ env.SERVICE_NAME }}
+          service: ${{ env.PROCESSOR_SERVICE }}
           region: ${{ env.REGION }}
-          image: ${{ env.DOCKERHUB_IMAGE }}:${{ github.sha }}
-          flags: '--port=${{ env.PORT }} --allow-unauthenticated'
+          image: ${{ env.PROCESSOR_IMAGE }}:${{ github.sha }}
+          flags: --port=8000 --allow-unauthenticated
+          env_vars: |
+            OPENAI_MODEL=${{ vars.OPENAI_MODEL }}
+            FIREBASE_WORKSPACES_COLLECTION=${{ vars.FIREBASE_WORKSPACES_COLLECTION }}
+            FIREBASE_EXTRACTION_SCHEMES_COLLECTION=${{ vars.FIREBASE_EXTRACTION_SCHEMES_COLLECTION }}
+            GOOGLE_DRIVE_INVOICES_BASE_PATH=${{ vars.GOOGLE_DRIVE_INVOICES_BASE_PATH }}
+            GOOGLE_CLIENT_ID=${{ vars.GOOGLE_CLIENT_ID }}
+          secrets: |
+            ORCHESTRATOR_API_KEY=${{ vars.ORCHESTRATOR_API_KEY_SECRET }}:latest
+            OPENAI_API_KEY=${{ vars.OPENAI_API_KEY_SECRET }}:latest
+            FIREBASE_SERVICE_ACCOUNT_JSON=${{ vars.FIREBASE_SERVICE_ACCOUNT_SECRET }}:latest
+            GOOGLE_CLIENT_SECRET=${{ vars.GOOGLE_CLIENT_SECRET_SECRET }}:latest
+
+      - name: Deploy API
+        id: deploy-api
+        if: github.event_name == 'workflow_dispatch' || steps.changes.outputs.api == 'true' || steps.changes.outputs.ui == 'true'
+        uses: google-github-actions/deploy-cloudrun@v3
+        with:
+          service: ${{ env.API_SERVICE }}
+          region: ${{ env.REGION }}
+          image: ${{ env.API_IMAGE }}:${{ github.sha }}
+          flags: --port=3000 --allow-unauthenticated
+          env_vars: |
+            CORS_ORIGINS=${{ vars.UI_ORIGIN }}
+            FIREBASE_DATABASE_URL=${{ vars.FIREBASE_DATABASE_URL }}
+            GOOGLE_CLIENT_ID=${{ vars.GOOGLE_CLIENT_ID }}
+          secrets: |
+            FIREBASE_SERVICE_ACCOUNT=${{ vars.FIREBASE_SERVICE_ACCOUNT_SECRET }}:latest
+            GOOGLE_CLIENT_SECRET=${{ vars.GOOGLE_CLIENT_SECRET_SECRET }}:latest
+
+      - name: Deploy UI
+        id: deploy-ui
+        if: github.event_name == 'workflow_dispatch' || steps.changes.outputs.ui == 'true'
+        uses: google-github-actions/deploy-cloudrun@v3
+        with:
+          service: ${{ env.UI_SERVICE }}
+          region: ${{ env.REGION }}
+          image: ${{ env.UI_IMAGE }}:${{ github.sha }}
+          flags: --port=80 --allow-unauthenticated
+          env_vars: |
+            API_BASE_URL=${{ steps.deploy-api.outputs.url }}/api
+            FIREBASE_API_KEY=${{ vars.FIREBASE_API_KEY }}
+            FIREBASE_AUTH_DOMAIN=${{ vars.FIREBASE_AUTH_DOMAIN }}
+            FIREBASE_DATABASE_URL=${{ vars.FIREBASE_DATABASE_URL }}
+            FIREBASE_PROJECT_ID=${{ vars.FIREBASE_PROJECT_ID }}
+            FIREBASE_STORAGE_BUCKET=${{ vars.FIREBASE_STORAGE_BUCKET }}
+            FIREBASE_MESSAGING_SENDER_ID=${{ vars.FIREBASE_MESSAGING_SENDER_ID }}
+            FIREBASE_APP_ID=${{ vars.FIREBASE_APP_ID }}
+            GOOGLE_CLIENT_ID=${{ vars.GOOGLE_CLIENT_ID }}
+            GOOGLE_PICKER_API_KEY=${{ vars.GOOGLE_PICKER_API_KEY }}
+            GOOGLE_SERVICE_ACCOUNT_EMAIL=${{ vars.GOOGLE_SERVICE_ACCOUNT_EMAIL }}
+
+      - name: Update API allowed UI origins
+        if: github.event_name == 'workflow_dispatch' || steps.changes.outputs.ui == 'true'
+        uses: google-github-actions/deploy-cloudrun@v3
+        with:
+          service: ${{ env.API_SERVICE }}
+          region: ${{ env.REGION }}
+          image: ${{ env.API_IMAGE }}:${{ github.sha }}
+          flags: --port=3000 --allow-unauthenticated
+          env_vars: |
+            CORS_ORIGINS=${{ steps.deploy-ui.outputs.url }},${{ vars.UI_ORIGIN }}

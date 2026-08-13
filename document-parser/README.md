@@ -1,35 +1,38 @@
 # Document Parser
 
-A multi-tenant invoice and receipt processor that scans Google Drive, extracts structured data with OpenAI, records processing state in Firebase Firestore, moves processed files, and writes results to Google Sheets. It can be run through a FastAPI service or directly from the command line.
+A multi-workspace invoice and receipt processor that scans Google Drive, extracts structured data with OpenAI, records processing state in Firebase Firestore, moves processed files, and writes results to Google Sheets. It can be run through a FastAPI service or directly from the command line.
 
 ## Processing flow
 
-1. Load active tenants and their enabled rules from Firestore.
-2. Scan each rule's Google Drive source folder.
-3. Download supported files and skip content already tracked in Firestore.
-4. Parse new or modified documents with OpenAI.
-5. Move valid invoices to `<target folder>/yyyyMM` and incomplete invoices to `<target folder>/Corrupted`.
-6. Store the parsed payload and lifecycle status in Firestore.
-7. Write invoice fields to the configured Google Sheet.
+1. Load active workspaces and their enabled rules from Firestore.
+2. Dispatch by `execution_mode`; missing values default to `source_by_rule`.
+3. In `source_by_rule`, scan and execute each rule's Google Drive source folder as before.
+4. In `single_source`, scan the workspace inbox once, parse each document once, and use OpenAI to select one enabled rule.
+5. Keep unmatched single-source documents in the inbox without running rule actions.
+6. Move matched files and write invoice fields to the selected rule's Google Sheet.
+7. Store unified file state and run summaries under `workspace_executions`.
 
 Supported files: `.txt`, `.pdf`, `.docx`, `.jpg`, `.jpeg`, and `.png`.
 
 ## Database model
 
-Firestore is schemaless, but the application writes the following logical model. `RULES` is a subcollection of `TENANTS`; `PROCESSED_FILES` is stored in a rule-scoped execution path.
+Firestore is schemaless, but the application writes the following logical model. `RULES` belongs to `WORKSPACES`; both execution modes share workspace-level file tracking.
 
 ```mermaid
 erDiagram
-	TENANTS ||--o{ USER_ACCOUNTS : contains
-	TENANTS ||--o{ RULES : configures
+	WORKSPACES ||--o{ RULES : configures
+	WORKSPACES ||--|| WORKSPACE_EXECUTIONS : records
 	EXTRACTION_SCHEMES ||--o{ RULES : selected_by
-	RULES ||--o{ PROCESSED_FILES : produces
+	WORKSPACE_EXECUTIONS ||--o{ PROCESSED_FILES : tracks
+	WORKSPACE_EXECUTIONS ||--o{ RUNS : contains
 
-	TENANTS {
-		string tenant_id PK
+	WORKSPACES {
+		string workspace_id PK
 		string name
 		string email
 		boolean active
+		string execution_mode
+		map routing
 		string refresh_token
 		string displayName
 		string photoURL
@@ -38,20 +41,9 @@ erDiagram
 		timestamp last_sign_in
 	}
 
-	USER_ACCOUNTS {
-		string id PK
-		string uid
-		string tenant_id FK
-		string email
-		string displayName
-		string photoURL
-		number balance
-		timestamp updated_at
-	}
-
 	RULES {
 		string rule_id PK
-		string tenant_id FK
+		string workspace_id FK
 		string rule_name
 		string source_folder_id
 		string source_folder_name
@@ -62,6 +54,10 @@ erDiagram
 		string sheet_tab_name
 		string schema_id FK
 		boolean is_enabled
+		number priority
+		string condition_mode
+		array conditions
+		map actions
 		timestamp created_at
 		timestamp updated_at
 	}
@@ -77,26 +73,45 @@ erDiagram
 		map identity
 	}
 
+	WORKSPACE_EXECUTIONS {
+		string workspace_id PK
+		string last_execution_mode
+		string last_status
+		timestamp last_started_at
+		timestamp last_completed_at
+	}
+
 	PROCESSED_FILES {
 		string document_id PK
-		string tenant_id FK
-		string rule_id FK
+		string workspace_id FK
+		string selected_rule_id FK
 		string drive_file_id
 		string source_file_name
+		string execution_mode
 		string schema_id FK
+		number schema_version
 		string status
 		timestamp executed_at
 		map parsed_data
+	}
+
+	RUNS {
+		string execution_id PK
+		string execution_mode
+		string status
+		timestamp started_at
+		timestamp completed_at
 	}
 ```
 
 Collection paths:
 
-- `tenants/{tenant_id}`
-- `tenants/{tenant_id}/rules/{rule_id}`
+- `workspaces/{workspace_id}`
+- `workspaces/{workspace_id}/rules/{rule_id}`
 - `user-accounts/{account_id}`
 - `extraction_schemes/{schema_id}`
-- `{tenant_id}/{rule_id}/processed_files/{document_id}`
+- `workspace_executions/{workspace_id}/processed_files/{document_id}`
+- `workspace_executions/{workspace_id}/runs/{execution_id}`
 
 ## Prerequisites
 
@@ -124,7 +139,7 @@ The application also requires:
 5. Obtain an offline refresh token using these scopes:
 	 - `https://www.googleapis.com/auth/drive`
 	 - `https://www.googleapis.com/auth/spreadsheets`
-6. Store the client ID and secret as deployment environment variables. Store each tenant's refresh token in its Firestore tenant document.
+6. Store the client ID and secret as deployment environment variables. Store each workspace refresh token in its Firestore workspace document.
 
 The refresh token must have been issued to the same OAuth client configured by `GOOGLE_CLIENT_ID` and `GOOGLE_CLIENT_SECRET`. In Google Workspace environments, an administrator may also need to allow the OAuth application.
 
@@ -145,18 +160,16 @@ OPENAI_MODEL=gpt-4o
 # Firebase: use one of these options
 FIREBASE_SERVICE_ACCOUNT_FILE=C:/secure/firebase-service-account.json
 # FIREBASE_SERVICE_ACCOUNT_JSON={"type":"service_account",...}
-FIREBASE_TENANTS_COLLECTION=tenants
+FIREBASE_WORKSPACES_COLLECTION=workspaces
 FIREBASE_TRACK_PROCESSED=true
 FIREBASE_EXTRACTION_SCHEMES_COLLECTION=extraction_schemes
 
-# Google OAuth client used for every tenant
+# Google OAuth client used for every workspace
 GOOGLE_CLIENT_ID=your-client-id.apps.googleusercontent.com
 GOOGLE_CLIENT_SECRET=your-client-secret
 
-# Only required to create the default tenant when Firestore has no tenants
+# Optional local integration defaults
 GOOGLE_REFRESH_TOKEN=your-google-refresh-token
-GOOGLE_DRIVE_FOLDER_IDS=source-drive-folder-id
-GOOGLE_DRIVE_INVOICES_ROOT_FOLDER_ID=target-drive-folder-id
 GOOGLE_SHEETS_SPREADSHEET_ID=target-spreadsheet-id
 GOOGLE_SHEETS_WORKSHEET=Salidas
 
@@ -166,21 +179,37 @@ GOOGLE_DRIVE_INVOICES_BASE_PATH=Facturas
 
 `FIREBASE_SERVICE_ACCOUNT_FILE` is convenient for local development. For containers and hosted environments, `FIREBASE_SERVICE_ACCOUNT_JSON` is usually easier because it does not require a separate credential-file mount.
 
-`GOOGLE_REFRESH_TOKEN` and the source/target IDs are bootstrap values only. When no active tenants exist, the application creates `default_tenant` and its default rule from them. Existing tenants use their Firestore configuration instead.
+Workspace refresh tokens and routing are stored in Firestore workspace documents.
 
 ## Firestore configuration
 
-Each active tenant is stored at `tenants/{tenant_id}`:
+Each active workspace is stored at `workspaces/{workspace_id}`:
 
 ```json
 {
-	"name": "Example tenant",
+	"name": "Example workspace",
 	"active": true,
+	"execution_mode": "source_by_rule",
 	"refresh_token": "Google OAuth refresh token"
 }
 ```
 
-Each processing rule is stored at `tenants/{tenant_id}/rules/{rule_id}`:
+For `single_source`, add workspace routing:
+
+```json
+{
+	"execution_mode": "single_source",
+	"routing": {
+		"inbox_folder_id": "google-drive-inbox-folder-id",
+		"schema_id": "arg-invoices",
+		"include_subfolders": true,
+		"selection_strategy": "llm",
+		"multiple_match_policy": "highest_priority"
+	}
+}
+```
+
+Each processing rule is stored at `workspaces/{workspace_id}/rules/{rule_id}`:
 
 ```json
 {
@@ -197,13 +226,9 @@ Each processing rule is stored at `tenants/{tenant_id}/rules/{rule_id}`:
 
 Extraction schemes are shared globally and stored at `extraction_schemes/{schema_id}`. Each scheme owns its `parsing_prompt`, response `schema`, and document `identity` configuration. The `schema_id` on each rule selects the complete scheme used for that rule. Existing rules without this field use `arg-invoices`.
 
-Each extraction scheme also defines ordered identity strategies. The first strategy with all required extracted fields produces the canonical document ID. Processing records are rule-scoped at `{tenant_id}/{rule_id}/processed_files/{document_id}`. Canonical records use the generated identity key as `document_id`; duplicate records use a `duplicated-` prefix. A second source with an existing identity in the same rule is treated as redundant and is not moved or written to Sheets.
+Each extraction scheme also defines ordered identity strategies. The first strategy with all required extracted fields produces the canonical document ID. Processing records for both modes are workspace-scoped at `workspace_executions/{workspace_id}/processed_files/{document_id}`. Canonical records use the generated identity key as `document_id`; duplicate records use a `duplicated-` prefix. Existing rule-scoped records are read as a fallback and copied lazily into unified tracking without deleting the legacy data.
 
-After changing a scheme JSON file, increment its `version` and upload it to Firestore. The version change causes unchanged Drive sources to be re-extracted:
-
-```powershell
-python seed_extraction_schemes.py --document-id arg-invoices --overwrite
-```
+After changing an extraction scheme, increment its `version` and upload it to Firestore. The version change causes unchanged Drive sources to be re-extracted.
 
 The service account identified by `FIREBASE_SERVICE_ACCOUNT_FILE` or `FIREBASE_SERVICE_ACCOUNT_JSON` must be authorized to read and write these documents and the processing records created by the application.
 
@@ -244,7 +269,7 @@ docker compose down
 
 ## Start orchestration
 
-All active tenants:
+All active workspaces:
 
 ```powershell
 $headers = @{ "Orchestrator-API-Key" = $env:ORCHESTRATOR_API_KEY }
@@ -262,7 +287,7 @@ Invoke-RestMethod `
 		-Body $body
 ```
 
-One tenant can be processed through `POST /api/orchestrate/tenant/{tenant_id}` with the same headers and request body.
+One workspace can be processed through `POST /api/orchestrate/workspace/{workspace_id}` with the same headers and request body.
 
 To run without the API:
 
@@ -287,9 +312,9 @@ The normal worksheet receives the columns `fecha`, `source_file`, `display_descr
 
 ## Troubleshooting
 
-- **Missing Google OAuth configuration**: verify `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, and the tenant's `refresh_token`.
+- **Missing Google OAuth configuration**: verify `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, and the workspace `refresh_token`.
 - **Google `invalid_grant` error**: the refresh token may be revoked, expired, or issued to a different OAuth client.
 - **Drive or Sheets permission error**: share the folder or spreadsheet with the Google account that authorized the refresh token.
 - **Firebase credential error**: set exactly one valid Firebase service-account option and confirm that Firestore is enabled.
 - **401 from an orchestration endpoint**: send the value of `ORCHESTRATOR_API_KEY` in the `Orchestrator-API-Key` header. The health endpoint does not require this header.
-- **No tenants found**: either create the Firestore tenant and rule documents or provide all default-tenant bootstrap variables shown above.
+- **No workspaces found**: create an active Firestore workspace and its rule documents.

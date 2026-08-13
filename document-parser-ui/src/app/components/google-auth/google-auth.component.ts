@@ -1,10 +1,14 @@
 import { Component, OnInit, OnDestroy } from '@angular/core';
 import { CommonModule } from '@angular/common';
-import { HttpClientModule } from '@angular/common/http';
-import { ActivatedRoute } from '@angular/router';
+import { MatButtonModule } from '@angular/material/button';
+import { MatCardModule } from '@angular/material/card';
+import { MatDividerModule } from '@angular/material/divider';
+import { MatListModule } from '@angular/material/list';
+import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
+import { LucideCircleAlert, LucideCircleCheck, LucideFile, LucideFolder, LucideRotateCcw, LucideShare2 } from '@lucide/angular';
 import { Subject } from 'rxjs';
 import { takeUntil } from 'rxjs/operators';
-import { GoogleAuthService, AuthState } from '../../services/google-auth.service';
+import { GoogleAuthService } from '../../services/google-auth.service';
 import { GooglePickerService, PickedItem } from '../../services/google-picker.service';
 import { GoogleDriveSharingService, SharingResult } from '../../services/google-drive-sharing.service';
 
@@ -20,13 +24,23 @@ export interface UIState {
 @Component({
   selector: 'app-google-auth',
   standalone: true,
-  imports: [CommonModule, HttpClientModule],
-  templateUrl: './google-auth.component.html',
-  styleUrls: ['./google-auth.component.css']
+  imports: [
+    CommonModule,
+    MatButtonModule,
+    MatCardModule,
+    MatDividerModule,
+    MatListModule,
+    MatProgressSpinnerModule,
+    LucideCircleAlert,
+    LucideCircleCheck,
+    LucideFile,
+    LucideFolder,
+    LucideRotateCcw,
+    LucideShare2
+  ],
+  templateUrl: './google-auth.component.html'
 })
 export class GoogleAuthComponent implements OnInit, OnDestroy {
-  authState: AuthState | null = null;
-
   uiState: UIState = {
     currentStep: 'auth',
     authStatus: 'Not authenticated',
@@ -41,15 +55,13 @@ export class GoogleAuthComponent implements OnInit, OnDestroy {
   constructor(
     private authService: GoogleAuthService,
     private pickerService: GooglePickerService,
-    private sharingService: GoogleDriveSharingService,
-    private route: ActivatedRoute
+    private sharingService: GoogleDriveSharingService
   ) {}
 
   ngOnInit(): void {
     // After Firebase login redirects here, automatically open the picker
     const accessToken = this.authService.getAccessToken();
     if (accessToken) {
-      console.log('✅ User authenticated via Firebase, opening Google Picker...');
       setTimeout(() => this.autoOpenGooglePicker(), 500);
     }
   }
@@ -76,7 +88,6 @@ export class GoogleAuthComponent implements OnInit, OnDestroy {
 
     this.pickerService.openPicker(accessToken)
       .then((items) => {
-        console.log('✅ Items selected from picker:', items);
         this.uiState.selectedItems = items;
         this.uiState.isLoading = false;
         this.uiState.currentStep = 'sharing';
@@ -135,25 +146,6 @@ export class GoogleAuthComponent implements OnInit, OnDestroy {
       isLoading: false,
       errorMessage: null
     };
-  }
-
-  /**
-   * Get file display icon based on MIME type
-   */
-  getFileIcon(mimeType: string): string {
-    if (!mimeType) return '📄';
-    
-    if (mimeType.includes('document')) return '📝';
-    if (mimeType.includes('spreadsheet')) return '📊';
-    if (mimeType.includes('presentation')) return '🎯';
-    if (mimeType.includes('pdf')) return '📕';
-    if (mimeType.includes('image')) return '🖼️';
-    if (mimeType.includes('video')) return '🎬';
-    if (mimeType.includes('audio')) return '🎵';
-    if (mimeType.includes('archive') || mimeType.includes('zip')) return '📦';
-    if (mimeType.includes('text')) return '📄';
-    
-    return '📄';
   }
 
   /**

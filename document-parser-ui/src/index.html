@@ -2,35 +2,30 @@
 <html lang="en">
 <head>
   <meta charset="utf-8">
-  <title>DocParser - Document Management</title>
+  <title>DocParser</title>
   <base href="/">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, maximum-scale=5, user-scalable=yes">
-  <meta name="description" content="A responsive document parsing application for managing files and rules">
-  <meta name="theme-color" content="#667eea">
+  <meta name="description" content="Manage document parsing workflows, sources, and extraction rules.">
+  <meta name="theme-color" content="#ffffff" media="(prefers-color-scheme: light)">
+  <meta name="theme-color" content="#212121" media="(prefers-color-scheme: dark)">
   <meta name="mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-capable" content="yes">
-  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <meta name="apple-mobile-web-app-title" content="DocParser">
   <meta name="apple-mobile-web-app-status-bar-style" content="default">
-  
-  <!-- PWA Icons -->
-  <link rel="apple-touch-icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 180 180'><rect fill='%23667eea' width='180' height='180'/><text x='50%' y='50%' font-size='90' font-weight='bold' fill='white' text-anchor='middle' dominant-baseline='middle' font-family='system-ui'>📄</text></svg>">
-  <link rel="icon" type="image/x-icon" href="favicon.ico">
-  <link rel="manifest" href="manifest.webmanifest">
-  
-  <!-- Security & Performance -->
+  <link rel="icon" type="image/svg+xml" href="assets/docparser-mark.svg">
+  <link rel="manifest" href="assets/manifest.webmanifest">
+
   <meta http-equiv="x-ua-compatible" content="ie=edge">
   <meta name="format-detection" content="telephone=no">
   <meta name="format-detection" content="email=no">
-  
-  <!-- Preconnect to external resources -->
+
   <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link rel="dns-prefetch" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700&amp;display=swap" rel="stylesheet">
 </head>
 <body>
   <app-root></app-root>
-  
-  <!-- Service Worker Registration -->
+  <script src="assets/runtime-config.js"></script>
   <script>
     if ('serviceWorker' in navigator) {
       window.addEventListener('load', () => {

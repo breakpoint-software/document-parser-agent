@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import json
 import sys
 import unittest
 from pathlib import Path
@@ -14,7 +13,58 @@ from document_identity import DocumentIdentityError, build_document_identity, va
 from firebase_processed_files import FirebaseProcessedFilesTracker
 
 
-SCHEME_PATH = Path(__file__).parent.parent / "extraction_schemes" / "arg-invoices.json"
+IDENTITY_CONFIG = {
+    "version": 1,
+    "separator": "|",
+    "strategies": [
+        {
+            "name": "arca_invoice",
+            "strength": "strong",
+            "required": ["country", "supplier_tax_id", "document_code", "point_of_sale", "invoice_number"],
+            "components": [
+                {"field": "country", "normalizer": "uppercase"},
+                {"field": "supplier_tax_id", "normalizer": "digits"},
+                {"field": "document_code", "normalizer": "digits", "width": 3},
+                {"field": "point_of_sale", "normalizer": "digits", "width": 5},
+                {"field": "invoice_number", "normalizer": "digits", "width": 8},
+            ],
+        },
+        {
+            "name": "fiscal_ticket",
+            "strength": "strong",
+            "required": ["country", "supplier_tax_id", "point_of_sale", "invoice_number"],
+            "components": [
+                {"field": "country", "normalizer": "uppercase"},
+                {"field": "supplier_tax_id", "normalizer": "digits"},
+                {"field": "point_of_sale", "normalizer": "digits", "width": 4},
+                {"field": "invoice_number", "normalizer": "digits", "width": 8},
+            ],
+        },
+        {
+            "name": "tax_id_date_total",
+            "strength": "weak",
+            "required": ["country", "supplier_tax_id", "invoice_date", "total", "currency"],
+            "components": [
+                {"field": "country", "normalizer": "uppercase"},
+                {"field": "supplier_tax_id", "normalizer": "digits"},
+                {"field": "invoice_date", "normalizer": "date"},
+                {"field": "total", "normalizer": "decimal", "scale": 2},
+                {"field": "currency", "normalizer": "uppercase"},
+            ],
+        },
+    ],
+}
+
+IDENTITY_SCHEMA = {
+    "properties": {
+        field: {}
+        for field in {
+            component["field"]
+            for strategy in IDENTITY_CONFIG["strategies"]
+            for component in strategy["components"]
+        }
+    }
+}
 
 
 class FakeSnapshot:
@@ -90,8 +140,7 @@ class FakeDb:
 class DocumentIdentityTests(unittest.TestCase):
     @classmethod
     def setUpClass(cls) -> None:
-        cls.scheme = json.loads(SCHEME_PATH.read_text(encoding="utf-8"))
-        validate_identity_config(cls.scheme["identity"], cls.scheme["schema"])
+        validate_identity_config(IDENTITY_CONFIG, IDENTITY_SCHEMA)
 
     def test_arca_invoice_uses_highest_priority_strategy(self) -> None:
         identity = build_document_identity(
@@ -105,7 +154,7 @@ class DocumentIdentityTests(unittest.TestCase):
                 "total": 100,
                 "currency": "ARS",
             },
-            self.scheme["identity"],
+            IDENTITY_CONFIG,
         )
 
         self.assertIsNotNone(identity)
@@ -120,7 +169,7 @@ class DocumentIdentityTests(unittest.TestCase):
                 "point_of_sale": "834",
                 "invoice_number": "124567",
             },
-            self.scheme["identity"],
+            IDENTITY_CONFIG,
         )
 
         self.assertIsNotNone(identity)
@@ -136,7 +185,7 @@ class DocumentIdentityTests(unittest.TestCase):
                 "total": "1234.5",
                 "currency": "ars",
             },
-            self.scheme["identity"],
+            IDENTITY_CONFIG,
         )
 
         self.assertIsNotNone(identity)
@@ -144,7 +193,7 @@ class DocumentIdentityTests(unittest.TestCase):
         self.assertEqual(identity["identity_strength"], "weak")
 
     def test_missing_identity_fields_returns_none(self) -> None:
-        self.assertIsNone(build_document_identity({"country": "AR", "total": 100}, self.scheme["identity"]))
+        self.assertIsNone(build_document_identity({"country": "AR", "total": 100}, IDENTITY_CONFIG))
 
     def test_unknown_normalizer_is_rejected(self) -> None:
         invalid_identity = {
@@ -155,12 +204,18 @@ class DocumentIdentityTests(unittest.TestCase):
             }]
         }
         with self.assertRaises(DocumentIdentityError):
-            validate_identity_config(invalid_identity, self.scheme["schema"])
+            validate_identity_config(invalid_identity, IDENTITY_SCHEMA)
+
+    def test_missing_identity_metadata_is_rejected(self) -> None:
+        invalid_identity = {"strategies": IDENTITY_CONFIG["strategies"]}
+        with self.assertRaisesRegex(DocumentIdentityError, "version and separator"):
+            validate_identity_config(invalid_identity, IDENTITY_SCHEMA)
 
     def test_second_source_cannot_claim_existing_identity(self) -> None:
-        tracker = FirebaseProcessedFilesTracker("tenant", "rule")
+        tracker = FirebaseProcessedFilesTracker("workspace", "rule")
         tracker._db = FakeDb()
-        self.assertEqual(tracker.collection_name, "tenant/rule/processed_files")
+        self.assertEqual(tracker.collection_name, "workspace_executions/workspace/processed_files")
+        self.assertEqual(tracker.legacy_collection_name, "workspace/rule/processed_files")
         identity = {
             "identity_key": "AR|20220074464|015|00002|00000390",
             "identity_strategy": "arca_invoice",
@@ -169,12 +224,13 @@ class DocumentIdentityTests(unittest.TestCase):
             "identity_components": {},
         }
 
-        self.assertEqual(tracker.claim_document_identity(identity, "drive-1", "first.pdf"), "created")
-        self.assertEqual(tracker.claim_document_identity(identity, "drive-1", "first.pdf"), "existing_source")
-        self.assertIsNone(tracker.claim_document_identity(identity, "drive-2", "duplicate.pdf"))
+        tracking = {"schema_id": "arg-invoices", "schema_version": 4, "execution_mode": "source_by_rule"}
+        self.assertEqual(tracker.claim_document_identity(identity, "drive-1", "first.pdf", **tracking), "created")
+        self.assertEqual(tracker.claim_document_identity(identity, "drive-1", "first.pdf", **tracking), "existing_source")
+        self.assertIsNone(tracker.claim_document_identity(identity, "drive-2", "duplicate.pdf", **tracking))
 
     def test_source_and_parsed_data_share_processed_files_collection(self) -> None:
-        tracker = FirebaseProcessedFilesTracker("tenant", "rule")
+        tracker = FirebaseProcessedFilesTracker("workspace", "rule")
         tracker._db = FakeDb()
         identity_key = "AR|20220074464|015|00002|00000390"
         identity = {
@@ -185,25 +241,26 @@ class DocumentIdentityTests(unittest.TestCase):
             "identity_components": {},
         }
 
-        tracker.save_source_record("drive-1", "first.pdf", "2026-08-07", "Error")
+        tracking = {"schema_id": "arg-invoices", "schema_version": 4, "execution_mode": "source_by_rule"}
+        tracker.save_source_record("drive-1", "first.pdf", "2026-08-07", "Error", **tracking)
         self.assertEqual(tracker.get_source_record("drive-1")["status"], "Error")
-        self.assertEqual(tracker.claim_document_identity(identity, "drive-1", "first.pdf"), "created")
+        self.assertEqual(tracker.claim_document_identity(identity, "drive-1", "first.pdf", **tracking), "created")
         tracker.save_document_record(
             identity_key,
             "drive-1",
             "first.pdf",
-            "2026-08-07",
-            "Parsed",
-            {"total": 123.45},
+            source_modified_at="2026-08-07",
+            status="Parsed",
+            parsed_data={"total": 123.45},
+            **tracking,
         )
         tracker.save_source_record(
             "drive-1",
             "first.pdf",
             "2026-08-07",
             "Parsed",
-            identity_key,
-            "arg-invoices",
-            1,
+            identity_key=identity_key,
+            **tracking,
         )
 
         records = tracker._db.collections[tracker.collection_name]

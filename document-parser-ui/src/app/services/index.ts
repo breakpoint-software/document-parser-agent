@@ -2,7 +2,7 @@ export * from './firebase-auth.service';
 export * from './google-auth.service';
 export * from './google-drive-sharing.service';
 export * from './google-picker.service';
-export * from './tenant.service';
+export * from './workspace';
 export * from './user-account.service';
 export * from './google-sheets.service';
 export * from './google-drive.service';

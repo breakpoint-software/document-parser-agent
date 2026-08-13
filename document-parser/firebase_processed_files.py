@@ -5,6 +5,7 @@ import os
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
+from uuid import uuid4
 
 from dotenv import load_dotenv
 
@@ -19,19 +20,26 @@ class FirebaseConfigError(RuntimeError):
 class FirebaseProcessedFilesTracker:
     def __init__(
         self,
-        tenant_id: str,
-        rule_id: str,
+        workspace_id: str,
+        rule_id: str | None = None,
+        legacy_rule_ids: list[str] | None = None,
     ):
-        self.tenant_id = (tenant_id or "").strip()
+        self.workspace_id = (workspace_id or "").strip()
         self.rule_id = (rule_id or "").strip()
         
-        if not self.tenant_id:
-            raise FirebaseConfigError("tenant_id is required")
-        if not self.rule_id:
-            raise FirebaseConfigError("rule_id is required")
+        if not self.workspace_id:
+            raise FirebaseConfigError("workspace_id is required")
         
-        execution_path = f"{self.tenant_id}/{self.rule_id}"
-        self.collection_name = f"{execution_path}/processed_files"
+        self.collection_name = f"workspace_executions/{self.workspace_id}/processed_files"
+        self.runs_collection_name = f"workspace_executions/{self.workspace_id}/runs"
+        normalized_rule_ids = [value.strip() for value in (legacy_rule_ids or []) if value.strip()]
+        if self.rule_id:
+            normalized_rule_ids.insert(0, self.rule_id)
+        self.legacy_collection_names = [
+            f"{self.workspace_id}/{legacy_rule_id}/processed_files"
+            for legacy_rule_id in dict.fromkeys(normalized_rule_ids)
+        ]
+        self.legacy_collection_name = self.legacy_collection_names[0] if self.legacy_collection_names else None
         self._db = None
 
     def _build_credentials(self):
@@ -70,20 +78,35 @@ class FirebaseProcessedFilesTracker:
 
     def get_document_record(self, identity_key: str) -> dict[str, Any] | None:
         doc = self._get_db().collection(self.collection_name).document(identity_key).get()
-        if not doc.exists:
-            return None
-        return doc.to_dict() or {}
+        if doc.exists:
+            return doc.to_dict() or {}
+
+        for legacy_collection_name in self.legacy_collection_names:
+            legacy_doc = self._get_db().collection(legacy_collection_name).document(identity_key).get()
+            if legacy_doc.exists:
+                payload = legacy_doc.to_dict() or {}
+                self._get_db().collection(self.collection_name).document(identity_key).set(payload)
+                return payload
+        return None
 
     def get_source_record(self, source_document_id: str) -> dict[str, Any] | None:
-        collection = self._get_db().collection(self.collection_name)
-        try:
-            documents = list(collection.where("drive_file_id", "==", source_document_id).limit(1).stream())
-        except Exception:
-            documents = collection.stream()
+        collection_names = [self.collection_name]
+        collection_names.extend(self.legacy_collection_names)
 
-        for doc in documents:
-            payload = doc.to_dict() or {}
-            if payload.get("drive_file_id") == source_document_id:
+        for collection_name in collection_names:
+            collection = self._get_db().collection(collection_name)
+            try:
+                documents = list(collection.where("drive_file_id", "==", source_document_id).limit(1).stream())
+            except Exception:
+                documents = list(collection.stream())
+
+            for doc in documents:
+                payload = doc.to_dict() or {}
+                if payload.get("drive_file_id") != source_document_id:
+                    continue
+                if collection_name != self.collection_name:
+                    record_id = str(payload.get("document_id") or payload.get("identity_key") or f"source-{source_document_id}")
+                    self._get_db().collection(self.collection_name).document(record_id).set(payload)
                 return payload
         return None
 
@@ -92,9 +115,14 @@ class FirebaseProcessedFilesTracker:
         record_id: str,
         status: str,
         schema_id: str,
+        schema_version: int,
+        execution_mode: str,
         source_file: str,
         drive_file_id: str,
         parsed_data: dict[str, Any],
+        source_modified_at: Any = None,
+        selected_rule_id: str | None = None,
+        rule_set_version: str | None = None,
     ) -> dict[str, Any]:
         return {
             "document_id": record_id,
@@ -104,6 +132,11 @@ class FirebaseProcessedFilesTracker:
             "source_file_name": source_file,
             "drive_file_id": drive_file_id,
             "parsed_data": parsed_data,
+            "source_modified_at": source_modified_at,
+            "schema_version": schema_version,
+            "execution_mode": execution_mode,
+            "selected_rule_id": selected_rule_id,
+            "rule_set_version": rule_set_version,
         }
 
     def claim_document_identity(
@@ -112,7 +145,12 @@ class FirebaseProcessedFilesTracker:
         source_document_id: str,
         source_file: str,
         schema_id: str,
-        parsed_data: dict[str, Any],
+        schema_version: int,
+        execution_mode: str,
+        parsed_data: dict[str, Any] | None = None,
+        source_modified_at: Any = None,
+        selected_rule_id: str | None = None,
+        rule_set_version: str | None = None,
     ) -> str | None:
         from google.api_core.exceptions import AlreadyExists
 
@@ -122,9 +160,14 @@ class FirebaseProcessedFilesTracker:
             identity_key,
             "Parsed",
             schema_id,
+            schema_version,
+            execution_mode,
             source_file,
             source_document_id,
-            parsed_data,
+            parsed_data or {},
+            source_modified_at,
+            selected_rule_id,
+            rule_set_version,
         )
         try:
             collection.document(identity_key).create(payload)
@@ -140,9 +183,14 @@ class FirebaseProcessedFilesTracker:
                     duplicate_id,
                     "Duplicated",
                     schema_id,
+                    schema_version,
+                    execution_mode,
                     source_file,
                     source_document_id,
-                    parsed_data,
+                    parsed_data or {},
+                    source_modified_at,
+                    selected_rule_id,
+                    rule_set_version,
                 )
             )
             return None
@@ -158,27 +206,106 @@ class FirebaseProcessedFilesTracker:
         identity_key: str,
         drive_file_id: str,
         source_file: str,
-        status: str,
         schema_id: str,
-        parsed_data: dict[str, Any],
+        schema_version: int,
+        execution_mode: str,
+        source_modified_at: Any = None,
+        status: str = "Parsed",
+        parsed_data: dict[str, Any] | None = None,
+        selected_rule_id: str | None = None,
+        rule_set_version: str | None = None,
     ) -> None:
         payload = self._build_record(
             identity_key,
             status,
             schema_id,
+            schema_version,
+            execution_mode,
             source_file,
             drive_file_id,
-            parsed_data,
+            parsed_data or {},
+            source_modified_at,
+            selected_rule_id,
+            rule_set_version,
         )
         self._get_db().collection(self.collection_name).document(identity_key).set(payload)
 
+    def save_source_record(
+        self,
+        drive_file_id: str,
+        source_file: str,
+        source_modified_at: Any,
+        status: str,
+        schema_id: str,
+        schema_version: int,
+        execution_mode: str,
+        identity_key: str | None = None,
+        selected_rule_id: str | None = None,
+        parsed_data: dict[str, Any] | None = None,
+        rule_set_version: str | None = None,
+    ) -> None:
+        record_id = identity_key or f"source-{drive_file_id}"
+        payload = self._build_record(
+            record_id,
+            status,
+            schema_id,
+            schema_version,
+            execution_mode,
+            source_file,
+            drive_file_id,
+            parsed_data or {},
+            source_modified_at,
+            selected_rule_id,
+            rule_set_version,
+        )
+        payload["identity_key"] = identity_key
+        if identity_key:
+            payload.pop("parsed_data", None)
+        collection = self._get_db().collection(self.collection_name)
+        collection.document(record_id).set(payload, merge=True)
+        placeholder_id = f"source-{drive_file_id}"
+        if identity_key and placeholder_id != record_id:
+            collection.document(placeholder_id).delete()
+
     def mark_document_sent(self, identity_key: str) -> None:
-        now = datetime.now(timezone.utc).isoformat()
+        self.mark_document_status(identity_key, "Sent")
+
+    def mark_document_status(self, record_id: str, status: str, **fields: Any) -> None:
         payload = {
-            "status": "Sent",
-            "executed_at": now,
+            "status": status,
+            "executed_at": datetime.now(timezone.utc).isoformat(),
+            **fields,
         }
-        self._get_db().collection(self.collection_name).document(identity_key).set(payload, merge=True)
+        self._get_db().collection(self.collection_name).document(record_id).set(payload, merge=True)
+
+    def start_run(self, execution_mode: str) -> str:
+        run_id = uuid4().hex
+        started_at = datetime.now(timezone.utc).isoformat()
+        self._get_db().collection("workspace_executions").document(self.workspace_id).set({
+            "workspace_id": self.workspace_id,
+            "last_execution_mode": execution_mode,
+            "last_started_at": started_at,
+            "last_status": "running",
+        }, merge=True)
+        self._get_db().collection(self.runs_collection_name).document(run_id).set({
+            "execution_mode": execution_mode,
+            "status": "running",
+            "started_at": started_at,
+        })
+        return run_id
+
+    def finish_run(self, run_id: str, status: str, summary: dict[str, Any]) -> None:
+        completed_at = datetime.now(timezone.utc).isoformat()
+        payload = {
+            "status": status,
+            "completed_at": completed_at,
+            **summary,
+        }
+        self._get_db().collection(self.runs_collection_name).document(run_id).set(payload, merge=True)
+        self._get_db().collection("workspace_executions").document(self.workspace_id).set({
+            "last_completed_at": completed_at,
+            "last_status": status,
+        }, merge=True)
 
     def list_documents_by_statuses(self, statuses: list[str]) -> list[dict[str, Any]]:
         unique_statuses = [status for status in dict.fromkeys(statuses) if str(status).strip()]
@@ -208,14 +335,19 @@ class FirebaseProcessedFilesTracker:
 
 
 def build_firebase_tracker(
-    tenant_id: str,
-    rule_id: str,
+    workspace_id: str,
+    rule_id: str | None = None,
+    legacy_rule_ids: list[str] | None = None,
 ) -> FirebaseProcessedFilesTracker:
     enabled = (os.getenv("FIREBASE_TRACK_PROCESSED") or "true").strip().lower()
     if enabled in {"0", "false", "no", "off"}:
         raise FirebaseConfigError("Firebase tracking is disabled (FIREBASE_TRACK_PROCESSED=false)")
 
-    return FirebaseProcessedFilesTracker(tenant_id=tenant_id, rule_id=rule_id)
+    return FirebaseProcessedFilesTracker(
+        workspace_id=workspace_id,
+        rule_id=rule_id,
+        legacy_rule_ids=legacy_rule_ids,
+    )
 
 
 def check_drive_documents_to_process(
@@ -223,6 +355,7 @@ def check_drive_documents_to_process(
     documents: list[dict[str, Any]],
     schema_id: str,
     schema_version: int,
+    rule_set_version: str | None = None,
 ) -> tuple[list[dict[str, Any]], list[dict[str, Any]], str | None]:
     """
     Returns (documents_to_process, skipped_documents, warning).
@@ -264,10 +397,18 @@ def check_drive_documents_to_process(
 
             # Existing document - check if modified
             existing_schema_id = str(existing.get("schema_id") or "").strip()
+            existing_schema_version = int(existing.get("schema_version") or 0)
+            existing_modified_at = str(existing.get("source_modified_at") or "")
+            source_modified_at = str(document.get("modificationDate") or "")
             existing_status = str(existing.get("status") or "").strip()
             scheme_changed = existing_schema_id != schema_id
-            retry_required = existing_status not in {"Sent", "Parsed", "Corrupted", "Duplicated"}
-            if scheme_changed or retry_required:
+            scheme_version_changed = existing_schema_version != schema_version
+            source_changed = existing_modified_at != source_modified_at
+            rules_changed = rule_set_version is not None and existing.get("rule_set_version") != rule_set_version
+            retry_required = existing_status not in {
+                "Sent", "Parsed", "Matched", "Unmatched", "Moved", "Corrupted", "Duplicated"
+            }
+            if scheme_changed or scheme_version_changed or source_changed or rules_changed or retry_required:
                 to_process.append({
                     **document,
                     "target_status": "Modified",

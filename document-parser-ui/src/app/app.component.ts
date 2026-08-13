@@ -1,14 +1,162 @@
-import { Component } from '@angular/core';
-import { RouterOutlet } from '@angular/router';
-import { NavigationComponent } from './components/navigation/navigation.component';
+import { CommonModule } from '@angular/common';
+import { BreakpointObserver } from '@angular/cdk/layout';
+import { Component, computed, effect, inject, signal } from '@angular/core';
+import { toSignal } from '@angular/core/rxjs-interop';
+import { MatButtonModule } from '@angular/material/button';
+import { MatDividerModule } from '@angular/material/divider';
+import { MatListModule } from '@angular/material/list';
+import { MatSidenav, MatSidenavModule } from '@angular/material/sidenav';
+import { MatTooltipModule } from '@angular/material/tooltip';
+import { MatToolbarModule } from '@angular/material/toolbar';
+import { NavigationEnd, Router, RouterModule } from '@angular/router';
+import {
+  LucideFileScan,
+  LucideHouse,
+  LucideLayoutDashboard,
+  LucideLogOut,
+  LucideMenu,
+  LucideMoon,
+  LucideSun,
+  LucideUserRound
+} from '@lucide/angular';
+import { filter, map, startWith } from 'rxjs';
+import { FirebaseAuthService } from './services/firebase-auth.service';
+
+interface Breadcrumb {
+  label: string;
+  route?: string[];
+}
 
 @Component({
   selector: 'app-root',
   standalone: true,
-  imports: [RouterOutlet, NavigationComponent],
-  templateUrl: './app.component.html',
-  styleUrl: './app.component.css'
+  imports: [
+    CommonModule,
+    RouterModule,
+    MatButtonModule,
+    MatDividerModule,
+    MatListModule,
+    MatSidenavModule,
+    MatTooltipModule,
+    MatToolbarModule,
+    LucideFileScan,
+    LucideHouse,
+    LucideLayoutDashboard,
+    LucideLogOut,
+    LucideMenu,
+    LucideMoon,
+    LucideSun,
+    LucideUserRound
+  ],
+  templateUrl: './app.component.html'
 })
 export class AppComponent {
-  title = 'document-parser-ui';
+  private static readonly workspaceStorageKey = 'doc-parser-workspace-id';
+  private readonly authService = inject(FirebaseAuthService);
+  private readonly breakpointObserver = inject(BreakpointObserver);
+  private readonly router = inject(Router);
+  private readonly currentUrl = toSignal(
+    this.router.events.pipe(
+      filter((event): event is NavigationEnd => event instanceof NavigationEnd),
+      map(event => event.urlAfterRedirects),
+      startWith(this.router.url)
+    ),
+    { initialValue: this.router.url }
+  );
+
+  readonly isHandset = toSignal(
+    this.breakpointObserver.observe('(max-width: 767px)').pipe(map(result => result.matches)),
+    { initialValue: true }
+  );
+  readonly isAuthenticated = toSignal(this.authService.isAuthenticated$, { initialValue: false });
+  readonly isDarkMode = signal(this.getInitialTheme());
+  private readonly workspaceId = computed(() => {
+    const routeMatch = this.currentUrl().match(/^\/(?:dashboard|rules)\/([^/?#]+)/);
+    return routeMatch
+      ? decodeURIComponent(routeMatch[1])
+      : localStorage.getItem(AppComponent.workspaceStorageKey);
+  });
+
+  readonly dashboardLink = computed(() => this.workspaceLink('dashboard'));
+  readonly pageTitle = computed(() => {
+    const url = this.currentUrl();
+    if (url.startsWith('/rules/')) return 'Rules';
+    if (url.startsWith('/dashboard/')) return 'Dashboard';
+    if (url.startsWith('/test-oauth')) return 'OAuth Test';
+    if (url.startsWith('/auth-callback')) return 'Google Drive';
+    return 'Home';
+  });
+  readonly breadcrumbs = computed<Breadcrumb[]>(() => {
+    const url = this.currentUrl();
+    const workspaceId = this.workspaceId();
+
+    if (url.startsWith('/rules/')) {
+      return [
+        { label: 'Home', route: ['/'] },
+        { label: 'Dashboard', route: workspaceId ? ['/dashboard', workspaceId] : ['/'] },
+        { label: 'Rules' }
+      ];
+    }
+    if (url.startsWith('/dashboard/')) {
+      return [{ label: 'Home', route: ['/'] }, { label: 'Dashboard' }];
+    }
+    if (url.startsWith('/test-oauth')) {
+      return [{ label: 'Home', route: ['/'] }, { label: 'OAuth Test' }];
+    }
+    if (url.startsWith('/auth-callback')) {
+      return [{ label: 'Home', route: ['/'] }, { label: 'Google Drive' }];
+    }
+
+    return [{ label: 'Home' }];
+  });
+
+  constructor() {
+    effect(() => {
+      const routeMatch = this.currentUrl().match(/^\/(?:dashboard|rules)\/([^/?#]+)/);
+      if (routeMatch) {
+        localStorage.setItem(AppComponent.workspaceStorageKey, decodeURIComponent(routeMatch[1]));
+      }
+    });
+
+    effect(() => {
+      const darkMode = this.isDarkMode();
+      document.documentElement.classList.toggle('dark', darkMode);
+      document.documentElement.style.colorScheme = darkMode ? 'dark' : 'light';
+      localStorage.setItem('doc-parser-theme', darkMode ? 'dark' : 'light');
+    });
+  }
+
+  toggleTheme(): void {
+    this.isDarkMode.update(value => !value);
+  }
+
+  closeMobileDrawer(drawer: MatSidenav): void {
+    if (this.isHandset()) {
+      void drawer.close();
+    }
+  }
+
+  logout(drawer: MatSidenav): void {
+    this.authService.logout().subscribe({
+      next: () => {
+        localStorage.removeItem(AppComponent.workspaceStorageKey);
+        this.closeMobileDrawer(drawer);
+        void this.router.navigate(['/']);
+      },
+      error: error => console.error('Failed to log out:', error)
+    });
+  }
+
+  private workspaceLink(section: 'dashboard' | 'rules'): string[] {
+    const workspaceId = this.workspaceId();
+    return workspaceId ? ['/', section, workspaceId] : ['/'];
+  }
+
+  private getInitialTheme(): boolean {
+    const savedTheme = localStorage.getItem('doc-parser-theme');
+    if (savedTheme) {
+      return savedTheme === 'dark';
+    }
+    return window.matchMedia('(prefers-color-scheme: dark)').matches;
+  }
 }
