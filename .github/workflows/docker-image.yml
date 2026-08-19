@@ -163,7 +163,7 @@ jobs:
           service: ${{ env.API_SERVICE }}
           region: ${{ env.REGION }}
           image: ${{ env.API_IMAGE }}:${{ github.sha }}
-          flags: --port=3000 --allow-unauthenticated
+          flags: --port=3000 --allow-unauthenticated --remove-secrets=ORCHESTRATOR_API_KEY
           env_vars: |
             CORS_ORIGINS=${{ vars.UI_ORIGIN }}
             FIREBASE_DATABASE_URL=${{ vars.FIREBASE_DATABASE_URL }}
@@ -199,7 +199,7 @@ jobs:
           service: ${{ env.API_SERVICE }}
           region: ${{ env.REGION }}
           image: ${{ env.API_IMAGE }}:${{ github.sha }}
-          flags: --port=3000 --allow-unauthenticated
+          flags: --port=3000 --allow-unauthenticated --remove-secrets=ORCHESTRATOR_API_KEY
           env_vars: |
             CORS_ORIGINS=${{ steps.deploy-ui.outputs.url }},${{ vars.UI_ORIGIN }}
             PROCESSOR_API_URL=${{ vars.PROCESSOR_API_URL }}
