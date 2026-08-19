@@ -69,6 +69,8 @@ Configure these under **Settings > Secrets and variables > Actions > Variables**
 
 The workflow obtains the generated API URL from Cloud Run and injects it into the UI at container startup. It also adds the generated UI URL to API CORS automatically. `UI_ORIGIN` is only needed when a custom UI domain must also be allowed.
 
+The API deployment receives the processor's generated Cloud Run URL as `PROCESSOR_API_URL` and the existing orchestrator API-key secret as `ORCHESTRATOR_API_KEY`. This allows authenticated inbox uploads to be processed without exposing the processor key to the browser.
+
 ## Provider Configuration
 
 After the first deployment, add the generated UI URL and any custom domain to:

@@ -1,11 +1,17 @@
 import { Injectable } from '@angular/core';
-import { BehaviorSubject } from 'rxjs';
+import { BehaviorSubject, tap } from 'rxjs';
+import { HttpClient } from '@angular/common/http';
 import { GOOGLE_CONFIG } from '../config/google.config';
+import { BACKEND_API_CONFIG } from '../config/firebase.config';
 
 export interface AuthState {
   isAuthenticated: boolean;
   accessToken: string | null;
   userEmail: string | null;
+}
+
+interface AccessTokenResponse {
+  accessToken: string;
 }
 
 @Injectable({
@@ -25,7 +31,7 @@ export class GoogleAuthService {
   authState$ = this.authState.asObservable();
   private googleIdentityScript: Promise<void> | null = null;
 
-  constructor() {
+  constructor(private readonly http: HttpClient) {
     this.loadTokenFromStorage();
     void this.loadGoogleIdentityServices();
   }
@@ -136,6 +142,12 @@ export class GoogleAuthService {
    */
   getAccessToken(): string | null {
     return this.authState.value.accessToken;
+  }
+
+  refreshAccessToken() {
+    return this.http.post<AccessTokenResponse>(`${BACKEND_API_CONFIG.baseUrl}/auth/get-access-token`, {}).pipe(
+      tap(response => this.storeGoogleAccessToken(response.accessToken))
+    );
   }
 
   /**

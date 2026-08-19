@@ -7,6 +7,7 @@ function createWorkspaceRoutes(controller, requireGoogleAuth, requireOwnWorkspac
   router.get('/user/all', asyncHandler(controller.listWorkspaces));
   router.post('/', asyncHandler(controller.createWorkspace));
   router.get('/:workspaceId', requireOwnWorkspace, asyncHandler(controller.getWorkspace));
+  router.post('/:workspaceId/process-inbox-upload', requireOwnWorkspace, asyncHandler(controller.processInboxUpload));
   router.put('/:workspaceId', requireOwnWorkspace, asyncHandler(controller.updateWorkspace));
   router.delete('/:workspaceId', requireOwnWorkspace, asyncHandler(controller.deleteWorkspace));
   return router;

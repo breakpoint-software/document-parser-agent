@@ -26,6 +26,8 @@ function initializeServices() {
       process.env.GOOGLE_CLIENT_SECRET,
       'postmessage'
     ),
+    processorUrl: (process.env.PROCESSOR_API_URL || '').replace(/\/$/, ''),
+    processorApiKey: process.env.ORCHESTRATOR_API_KEY || '',
     firebaseConfigured: Object.keys(serviceAccount).length > 0
   };
 }

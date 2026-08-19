@@ -37,6 +37,8 @@ interface GoogleAuthResponse {
 })
 export class FirebaseAuthService {
   private auth: Auth;
+  private readonly authStateReady: Promise<void>;
+  private resolveAuthStateReady!: () => void;
   
   private currentUser = new BehaviorSubject<UserProfile | null>(null);
   currentUser$ = this.currentUser.asObservable();
@@ -54,6 +56,9 @@ export class FirebaseAuthService {
     // Initialize Firebase
     const app = initializeApp(FIREBASE_CONFIG);
     this.auth = getAuth(app);
+    this.authStateReady = new Promise(resolve => {
+      this.resolveAuthStateReady = resolve;
+    });
 
     // Monitor auth state
     this.initializeAuthStateListener();
@@ -77,6 +82,8 @@ export class FirebaseAuthService {
         this.currentUser.next(null);
         this.isAuthenticated.next(false);
       }
+
+      this.resolveAuthStateReady();
     });
   }
 
@@ -182,12 +189,28 @@ export class FirebaseAuthService {
 
   /**
    * Get auth token
+   * First tries to get from Firebase Auth, falls back to sessionStorage/localStorage for testing
    */
   async getAuthToken(): Promise<string | null> {
+    await this.authStateReady;
+
     const user = this.auth.currentUser;
     if (user) {
       return await user.getIdToken();
     }
+    
+    // Fallback for testing: check sessionStorage (injected during setup)
+    let testToken = sessionStorage.getItem('access_token');
+    if (testToken) {
+      return testToken;
+    }
+    
+    // Also check localStorage (persisted when Playwright restores auth state)
+    testToken = localStorage.getItem('access_token');
+    if (testToken) {
+      return testToken;
+    }
+    
     return null;
   }
 

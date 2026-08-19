@@ -29,6 +29,7 @@ from google_drive_service import (
 	DRIVE_METADATA_READONLY_SCOPE,
 	GoogleDriveConfigError,
 	build_drive_service,
+	download_drive_document,
 	move_file_to_path,
 	scan_drive_supported_documents,
 )
@@ -579,6 +580,181 @@ def orchestrate_single_rule(
 		"skipped_items": skipped,
 		"errors": error_items,
 	}
+
+def process_uploaded_inbox_file(
+	workspace_id: str,
+	workspace_config: WorkspaceConfig,
+	file_id: str,
+	model: str,
+) -> dict[str, Any]:
+	"""Process one inbox upload using the workspace's content-based rule selection."""
+	routing = workspace_config.routing
+	if routing is None or not routing.inbox_folder_id:
+		raise ValueError("Workspace inbox routing is not configured.")
+
+	openai_api_key = _get_openai_api_key_from_env()
+	if not openai_api_key:
+		raise RuntimeError("Document processing is not configured.")
+	if not workspace_config.credentials.google_refresh_token:
+		raise RuntimeError("Workspace Google authorization is missing.")
+
+	config_manager = FirebaseWorkspaceConfigManager()
+	enabled_rules = config_manager.get_enabled_rules(workspace_id)
+	rule_set_version = _build_rule_set_version(enabled_rules)
+	client = _create_openai_client_from_key(openai_api_key)
+	tracker = build_firebase_tracker(
+		workspace_id=workspace_id,
+		legacy_rule_ids=[rule.rule_id for rule in enabled_rules],
+	)
+	extraction_scheme = config_manager.get_extraction_scheme(routing.schema_id)
+	google_credentials = build_google_oauth_credentials(
+		workspace_config.credentials.google_refresh_token,
+		GOOGLE_OAUTH_SCOPES,
+	)
+	drive_service = build_drive_service(
+		scope=[DRIVE_FILE_SCOPE, DRIVE_METADATA_READONLY_SCOPE],
+		credentials=google_credentials,
+	)
+
+	scan_result = download_drive_document(file_id, drive_service)
+	document = scan_result.documents[0]
+	identity_key: str | None = None
+	identity_claim_created = False
+	try:
+		parsed = _parse_document(client, model, document.local_path, document.source_file, routing.schema_id)
+		selected_rule = select_rule_for_document(client, model, parsed, enabled_rules)
+		identity = build_document_identity(parsed, extraction_scheme["identity"])
+		if identity is not None:
+			identity_key = identity["identity_key"]
+			parsed.update(identity)
+			claim_result = tracker.claim_document_identity(
+				identity=identity,
+				source_document_id=document.document_id,
+				source_file=document.source_file,
+				schema_id=routing.schema_id,
+				schema_version=extraction_scheme["version"],
+				execution_mode="manual_inbox_upload",
+				parsed_data=parsed,
+				source_modified_at=document.modificationDate,
+				selected_rule_id=selected_rule.rule_id if selected_rule else None,
+				rule_set_version=rule_set_version,
+			)
+			identity_claim_created = claim_result == "created"
+			if claim_result is None or claim_result == "existing_source":
+				return {
+					"status": "Duplicated",
+					"source_file": document.source_file,
+					"duplicate": True,
+				}
+
+		if selected_rule is None:
+			if identity_key:
+				tracker.save_document_record(
+					identity_key=identity_key,
+					drive_file_id=document.document_id,
+					source_file=document.source_file,
+					source_modified_at=document.modificationDate,
+					status="Failed",
+					parsed_data=parsed,
+					schema_id=routing.schema_id,
+					schema_version=extraction_scheme["version"],
+					execution_mode="manual_inbox_upload",
+					rule_set_version=rule_set_version,
+				)
+			else:
+				tracker.save_source_record(
+					drive_file_id=document.document_id,
+					source_file=document.source_file,
+					source_modified_at=document.modificationDate,
+					status="Failed",
+					schema_id=routing.schema_id,
+					schema_version=extraction_scheme["version"],
+					execution_mode="manual_inbox_upload",
+					parsed_data=parsed,
+					rule_set_version=rule_set_version,
+				)
+			return {"status": "Failed", "source_file": document.source_file, "duplicate": False}
+
+		destination_path, is_corrupted = (
+			("Corrupted", True) if identity_key is None else _resolve_drive_destination_path(parsed)
+		)
+		actions = selected_rule.actions or {}
+		move_enabled = actions.get("move_to_folder", bool(selected_rule.target_folder_id))
+		sheet_enabled = actions.get("append_to_sheet", bool(selected_rule.target_sheet_id))
+		if move_enabled and selected_rule.target_folder_id:
+			move_file_to_path(
+				service=drive_service,
+				file_id=document.document_id,
+				destination_path=destination_path,
+				root_folder_id=selected_rule.target_folder_id,
+			)
+
+		sent_to_sheet = False
+		if sheet_enabled and selected_rule.target_sheet_id and not is_corrupted:
+			row_for_sheet = _build_sheet_row(parsed)
+			row_for_sheet["source_file"] = _build_hyperlink_formula(
+				_build_drive_file_url(document.document_id),
+				document.source_file,
+			)
+			append_row_to_google_sheet(
+				row_for_sheet,
+				SHEET_COLUMNS,
+				worksheet_name=selected_rule.sheet_tab_name,
+				spreadsheet_id=selected_rule.target_sheet_id,
+				credentials=google_credentials,
+			)
+			sent_to_sheet = True
+
+		final_status = "Corrupted" if is_corrupted else ("Sent" if sent_to_sheet else ("Moved" if move_enabled else "Matched"))
+		if identity_key:
+			tracker.save_document_record(
+				identity_key=identity_key,
+				drive_file_id=document.document_id,
+				source_file=document.source_file,
+				source_modified_at=document.modificationDate,
+				status=final_status,
+				parsed_data=parsed,
+				schema_id=routing.schema_id,
+				schema_version=extraction_scheme["version"],
+				execution_mode="manual_inbox_upload",
+				selected_rule_id=selected_rule.rule_id,
+				rule_set_version=rule_set_version,
+			)
+		else:
+			tracker.save_source_record(
+				drive_file_id=document.document_id,
+				source_file=document.source_file,
+				source_modified_at=document.modificationDate,
+				status=final_status,
+				schema_id=routing.schema_id,
+				schema_version=extraction_scheme["version"],
+				execution_mode="manual_inbox_upload",
+				selected_rule_id=selected_rule.rule_id,
+				parsed_data=parsed,
+				rule_set_version=rule_set_version,
+			)
+		return {
+			"status": final_status,
+			"source_file": document.source_file,
+			"selected_rule_name": selected_rule.rule_name,
+			"duplicate": False,
+		}
+	except Exception:
+		if identity_claim_created and identity_key:
+			tracker.release_document_identity(identity_key, document.document_id)
+		tracker.save_source_record(
+			drive_file_id=document.document_id,
+			source_file=document.source_file,
+			source_modified_at=document.modificationDate,
+			status="Failed",
+			schema_id=routing.schema_id,
+			schema_version=extraction_scheme["version"],
+			execution_mode="manual_inbox_upload",
+			rule_set_version=rule_set_version,
+		)
+		raise
+	finally:
+		shutil.rmtree(scan_result.temp_dir, ignore_errors=True)
 
 
 def _build_rule_set_version(rules: list[RuleObject]) -> str:

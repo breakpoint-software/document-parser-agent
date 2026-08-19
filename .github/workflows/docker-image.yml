@@ -139,6 +139,7 @@ jobs:
           service_account: ${{ secrets.GCP_SERVICE_ACCOUNT }}
 
       - name: Deploy processor
+        id: deploy-processor
         if: github.event_name == 'workflow_dispatch' || steps.changes.outputs.processor == 'true'
         uses: google-github-actions/deploy-cloudrun@v3
         with:
@@ -153,6 +154,12 @@ jobs:
             GOOGLE_DRIVE_INVOICES_BASE_PATH=${{ vars.GOOGLE_DRIVE_INVOICES_BASE_PATH }}
             GOOGLE_CLIENT_ID=${{ vars.GOOGLE_CLIENT_ID }}
 
+      - name: Discover processor URL
+        id: processor-url
+        if: github.event_name == 'workflow_dispatch' || steps.changes.outputs.processor == 'true' || steps.changes.outputs.api == 'true' || steps.changes.outputs.ui == 'true'
+        shell: bash
+        run: echo "url=$(gcloud run services describe \"${PROCESSOR_SERVICE}\" --region \"${REGION}\" --format='value(status.url)')" >> "$GITHUB_OUTPUT"
+
       - name: Deploy API
         id: deploy-api
         if: github.event_name == 'workflow_dispatch' || steps.changes.outputs.api == 'true' || steps.changes.outputs.ui == 'true'
@@ -166,6 +173,9 @@ jobs:
             CORS_ORIGINS=${{ vars.UI_ORIGIN }}
             FIREBASE_DATABASE_URL=${{ vars.FIREBASE_DATABASE_URL }}
             GOOGLE_CLIENT_ID=${{ vars.GOOGLE_CLIENT_ID }}
+            PROCESSOR_API_URL=${{ steps.deploy-processor.outputs.url || steps.processor-url.outputs.url }}
+          secrets: |
+            ORCHESTRATOR_API_KEY=${{ vars.ORCHESTRATOR_API_KEY_SECRET }}:latest
 
       - name: Deploy UI
         id: deploy-ui
@@ -199,3 +209,6 @@ jobs:
           flags: --port=3000 --allow-unauthenticated
           env_vars: |
             CORS_ORIGINS=${{ steps.deploy-ui.outputs.url }},${{ vars.UI_ORIGIN }}
+            PROCESSOR_API_URL=${{ steps.deploy-processor.outputs.url || steps.processor-url.outputs.url }}
+          secrets: |
+            ORCHESTRATOR_API_KEY=${{ vars.ORCHESTRATOR_API_KEY_SECRET }}:latest

@@ -4,6 +4,16 @@ import { map, Observable } from 'rxjs';
 import { BACKEND_API_CONFIG } from '../config/firebase.config';
 import { Workspace, WorkspaceResponse, WorkspacesResponse } from '../models';
 
+export interface ProcessInboxUploadResponse {
+  success: boolean;
+  result: {
+    status: string;
+    source_file: string;
+    selected_rule_name?: string;
+    duplicate?: boolean;
+  };
+}
+
 @Injectable({
   providedIn: 'root',
 })
@@ -28,6 +38,11 @@ export class WorkspaceService {
     return this.http.get<WorkspacesResponse>(`${this.apiUrl}/user/all`).pipe(
       map(response => response.workspaces.map(workspace => this.normalize(workspace)))
     );
+  }
+
+  processInboxUpload(workspaceId: string, fileId: string): Observable<ProcessInboxUploadResponse> {
+    const url = `${this.apiUrl}/${encodeURIComponent(workspaceId)}/process-inbox-upload`;
+    return this.http.post<ProcessInboxUploadResponse>(url, { file_id: fileId });
   }
 
   private normalize(workspace: Workspace): Workspace {

@@ -9,5 +9,5 @@
 		<span>{{ errorMessage }}</span>
 	</div>
 	<mat-spinner *ngIf="isLoading" diameter="28"></mat-spinner>
-	<button *ngIf="!isLoading" mat-flat-button type="button" (click)="signIn()">Continue with Google</button>
+	<button *ngIf="!isLoading" mat-flat-button type="button" (click)="signIn()" data-testid="google-signin-button">Continue with Google</button>
 </section>

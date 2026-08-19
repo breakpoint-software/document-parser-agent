@@ -1,4 +1,4 @@
-function createWorkspaceController({ admin, db }) {
+function createWorkspaceController({ admin, db, processorUrl, processorApiKey }) {
   async function getWorkspace(req, res) {
     const workspaceRef = db.collection('workspaces').doc(req.user.uid);
     const workspaceDoc = await workspaceRef.get();
@@ -47,7 +47,37 @@ function createWorkspaceController({ admin, db }) {
     return res.json({ success: true, message: 'Workspace deleted successfully' });
   }
 
-  return { createWorkspace, getWorkspace, updateWorkspace, listWorkspaces, deleteWorkspace };
+  async function processInboxUpload(req, res) {
+    const fileId = typeof req.body.file_id === 'string' ? req.body.file_id.trim() : '';
+    if (!fileId) return res.status(400).json({ error: 'file_id is required' });
+    if (!processorUrl || !processorApiKey) {
+      console.error('Processor integration is not configured');
+      return res.status(503).json({ error: 'File processing is temporarily unavailable' });
+    }
+
+    let response;
+    try {
+      response = await fetch(`${processorUrl}/api/process-inbox-upload`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Orchestrator-API-Key': processorApiKey
+        },
+        body: JSON.stringify({ workspace_id: req.user.uid, file_id: fileId }),
+        signal: AbortSignal.timeout(120000)
+      });
+    } catch (error) {
+      console.error('Processor inbox upload request failed:', error.message);
+      return res.status(502).json({ error: 'Unable to reach the document processor' });
+    }
+    if (!response.ok) {
+      console.error('Processor inbox upload request failed with status:', response.status);
+      return res.status(502).json({ error: 'Unable to process the uploaded file' });
+    }
+    return res.json(await response.json());
+  }
+
+  return { createWorkspace, getWorkspace, updateWorkspace, listWorkspaces, deleteWorkspace, processInboxUpload };
 }
 
 module.exports = { createWorkspaceController };

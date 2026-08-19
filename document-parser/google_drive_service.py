@@ -66,6 +66,42 @@ class GoogleDriveConfigError(RuntimeError):
     """Raised when required Google Drive environment configuration is missing or invalid."""
 
 
+def download_drive_document(
+    file_id: str,
+    service: Any,
+) -> DriveDownloadResult:
+    """Download one supported Drive document into a temporary directory."""
+    normalized_file_id = file_id.strip()
+    if not normalized_file_id:
+        raise ValueError("A Drive file ID is required.")
+
+    file_meta = (
+        service.files()
+        .get(
+            fileId=normalized_file_id,
+            fields="id, name, mimeType, modifiedTime",
+            supportsAllDrives=True,
+        )
+        .execute()
+    )
+    if not _is_supported_drive_file(file_meta):
+        raise ValueError("The uploaded file type is not supported.")
+
+    temp_dir = tempfile.mkdtemp(prefix="drive_doc_")
+    local_path = _download_drive_file(service, file_meta, Path(temp_dir))
+    return DriveDownloadResult(
+        documents=[DriveDocument(
+            document_id=normalized_file_id,
+            source_file=str(file_meta.get("name") or "").strip(),
+            mime_type=str(file_meta.get("mimeType") or "").strip(),
+            modificationDate=str(file_meta.get("modifiedTime") or "").strip() or None,
+            local_path=local_path,
+        )],
+        discovered_count=1,
+        temp_dir=temp_dir,
+    )
+
+
 def build_drive_credentials(refresh_token: str | None = None) -> Credentials:
     """Build Google Drive credentials.
     

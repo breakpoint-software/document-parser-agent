@@ -19,7 +19,7 @@ from fastapi import FastAPI, Depends, HTTPException, status, Header
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel, Field
 
-from document_orchestrator import orchestrate_all_active_workspaces, orchestrate_workspace
+from document_orchestrator import orchestrate_all_active_workspaces, orchestrate_workspace, process_uploaded_inbox_file
 from firebase_workspace_config import FirebaseWorkspaceConfigManager
 
 
@@ -40,6 +40,12 @@ class OrchestrationRequest(BaseModel):
 	model: str = Field(default="gpt-4o", description="OpenAI model to use")
 	include_subfolders: bool = Field(default=True, description="Include subfolders in Drive scan")
 	send_to_sheet: bool = Field(default=True, description="Send results to Google Sheets")
+
+
+class InboxUploadProcessingRequest(BaseModel):
+	"""A manually uploaded Drive file to process through inbox routing."""
+	workspace_id: str = Field(min_length=1)
+	file_id: str = Field(min_length=1)
 
 
 class RuleInfo(BaseModel):
@@ -185,6 +191,36 @@ async def run_workspace_orchestration(
 			status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
 			detail=f"Orchestration failed: {exc}"
 		)
+
+
+@app.post("/api/process-inbox-upload")
+async def process_inbox_upload(
+	request: InboxUploadProcessingRequest,
+	authorization: str | None = Depends(get_api_key),
+) -> dict[str, Any]:
+	"""Process one uploaded inbox file through content-based rule selection."""
+	workspace_id = request.workspace_id.strip()
+	file_id = request.file_id.strip()
+	workspace = config_manager.get_workspace(workspace_id)
+	if not workspace:
+		raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Workspace not found")
+
+	try:
+		result = process_uploaded_inbox_file(
+			workspace_id=workspace_id,
+			workspace_config=workspace,
+			file_id=file_id,
+			model=(os.getenv("OPENAI_MODEL") or "gpt-4o").strip(),
+		)
+		return {"success": True, "result": result}
+	except ValueError as exc:
+		raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
+	except Exception as exc:
+		logger.exception("Manual inbox upload processing failed workspace=%s", workspace_id)
+		raise HTTPException(
+			status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+			detail="Unable to process the uploaded file",
+		) from exc
 
 if __name__ == "__main__":
 	import uvicorn

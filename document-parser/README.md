@@ -170,6 +170,7 @@ GOOGLE_CLIENT_SECRET=your-client-secret
 
 # Optional local integration defaults
 GOOGLE_REFRESH_TOKEN=your-google-refresh-token
+GOOGLE_DRIVE_FOLDER_IDS=source-drive-folder-id
 GOOGLE_SHEETS_SPREADSHEET_ID=target-spreadsheet-id
 GOOGLE_SHEETS_WORKSHEET=Salidas
 

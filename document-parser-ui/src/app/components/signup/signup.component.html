@@ -13,17 +13,17 @@
   </mat-card-header>
 
   <mat-card-content class="space-y-6 p-4 sm:p-6">
-    <div *ngIf="isLoading" class="flex items-center gap-3" role="status">
+    <div *ngIf="isLoading" class="flex items-center gap-3" role="status" data-testid="loading-spinner">
       <mat-spinner diameter="24"></mat-spinner>
       <span>Processing...</span>
     </div>
 
-    <div *ngIf="errorMessage" class="flex items-start gap-2" role="alert">
+    <div *ngIf="errorMessage" class="flex items-start gap-2" role="alert" data-testid="error-message">
       <svg lucideCircleAlert class="h-5 w-5 shrink-0" aria-hidden="true"></svg>
       <span>{{ errorMessage }}</span>
     </div>
 
-    <div *ngIf="successMessage" class="flex items-start gap-2" role="status">
+    <div *ngIf="successMessage" class="flex items-start gap-2" role="status" data-testid="success-message">
       <svg lucideCircleCheck class="h-5 w-5 shrink-0" aria-hidden="true"></svg>
       <span>{{ successMessage }}</span>
     </div>
@@ -43,7 +43,7 @@
     </section>
 
     <section *ngIf="!currentUser" class="space-y-4">
-      <button mat-flat-button type="button" class="responsive-action w-full" aria-label="Continue with Google" (click)="continueWithGoogle()" [disabled]="isLoading">
+      <button mat-flat-button type="button" class="responsive-action w-full" aria-label="Continue with Google" (click)="continueWithGoogle()" [disabled]="isLoading" data-testid="google-signin-button">
         <img src="assets/google-g.svg" alt="" class="responsive-action__icon mr-2 inline h-4 w-4">
         <span class="sr-only sm:not-sr-only">Continue with Google</span>
       </button>

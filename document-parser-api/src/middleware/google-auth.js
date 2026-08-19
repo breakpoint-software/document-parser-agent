@@ -1,37 +1,29 @@
 function createGoogleAuthMiddleware({ auth, googleClient }) {
   return async function requireGoogleAuth(req, res, next) {
     const authorization = req.get('authorization') || '';
-    const [scheme, accessToken] = authorization.split(' ');
+    const [scheme, idToken] = authorization.split(' ');
 
-    if (scheme !== 'Bearer' || !accessToken) {
+    if (scheme !== 'Bearer' || !idToken) {
       return res.status(401).json({
-        error: 'Google authorization is required',
-        code: 'GOOGLE_AUTH_REQUIRED'
+        error: 'Firebase authorization is required',
+        code: 'AUTH_REQUIRED'
       });
     }
 
     try {
-      const tokenInfo = await googleClient.getTokenInfo(accessToken);
-      if (!tokenInfo.email || tokenInfo.email_verified === false) {
-        return res.status(401).json({
-          error: 'Google token does not contain a verified email',
-          code: 'INVALID_GOOGLE_TOKEN'
-        });
-      }
-
-      const firebaseUser = await auth.getUserByEmail(tokenInfo.email);
+      const decodedToken = await auth.verifyIdToken(idToken);
+      
       req.user = {
-        uid: firebaseUser.uid,
-        email: tokenInfo.email,
-        googleToken: accessToken,
-        scopes: tokenInfo.scopes || []
+        uid: decodedToken.uid,
+        email: decodedToken.email,
+        emailVerified: decodedToken.email_verified || false
       };
       return next();
     } catch (error) {
-      console.error('Google authorization failed:', error.message);
+      console.error('Firebase authorization failed:', error.message);
       return res.status(401).json({
-        error: 'Google access token is invalid or expired',
-        code: 'INVALID_GOOGLE_TOKEN'
+        error: 'Firebase ID token is invalid or expired',
+        code: 'INVALID_AUTH_TOKEN'
       });
     }
   };

@@ -1,7 +1,7 @@
 import { Injectable } from '@angular/core';
 import { HttpClient, HttpHeaders } from '@angular/common/http';
 import { firstValueFrom, from, Observable, throwError } from 'rxjs';
-import { catchError } from 'rxjs/operators';
+import { catchError, switchMap } from 'rxjs/operators';
 import { GoogleAuthService } from './google-auth.service';
 
 export interface DriveFile {
@@ -133,15 +133,6 @@ export class GoogleDriveService {
    * @param parentFolderId - Optional parent folder ID
    */
   uploadFile(file: File, parentFolderId?: string): Observable<any> {
-    const accessToken = this.authService.getAccessToken();
-    if (!accessToken) {
-      return throwError(() => new Error('No access token available'));
-    }
-
-    const headers = new HttpHeaders({
-      'Authorization': `Bearer ${accessToken}`
-    });
-
     const formData = new FormData();
     
     const metadata = {
@@ -154,7 +145,10 @@ export class GoogleDriveService {
 
     const url = 'https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart';
 
-    return this.http.post(url, formData, { headers }).pipe(
+    return this.authService.refreshAccessToken().pipe(
+      switchMap(({ accessToken }) => this.http.post<DriveFile>(url, formData, {
+        headers: new HttpHeaders({ Authorization: `Bearer ${accessToken}` })
+      })),
       catchError(error => {
         console.error('Error uploading file to Google Drive:', error);
         return throwError(() => error);

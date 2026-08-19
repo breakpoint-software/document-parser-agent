@@ -7,7 +7,7 @@ import { MatInputModule } from '@angular/material/input';
 import { MatSlideToggleModule } from '@angular/material/slide-toggle';
 import { MatSelectModule } from '@angular/material/select';
 import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
-import { LucideFolderOpen, LucidePencil, LucideSave, LucideX } from '@lucide/angular';
+import { LucideFolderOpen, LucidePencil, LucideSave, LucideUpload, LucideX } from '@lucide/angular';
 import { Subject } from 'rxjs';
 import { takeUntil } from 'rxjs/operators';
 import { ExtractionSchemeSummary, Workspace } from '../../models';
@@ -32,6 +32,7 @@ import { StatusBanner } from '../../shared/components/status-banner/status-banne
     LucideFolderOpen,
     LucidePencil,
     LucideSave,
+    LucideUpload,
     LucideX,
     RulesManagementComponent,
     StatusBanner
@@ -46,6 +47,7 @@ export class WorkspaceDashboardComponent implements OnInit, OnDestroy {
   successMessage = '';
   pickerReady = false;
   isEditing = false;
+  isProcessingUpload = false;
   extractionSchemes: Array<Pick<ExtractionSchemeSummary, 'schema_id' | 'name' | 'version'>> = [];
   readonly routingForm;
 
@@ -140,6 +142,68 @@ export class WorkspaceDashboardComponent implements OnInit, OnDestroy {
       },
       error: error => this.errorMessage = error.error?.error || 'Failed to save workspace routing.'
     });
+  }
+
+  selectInboxUpload(fileInput: HTMLInputElement): void {
+    if (this.isProcessingUpload || !this.workspace?.routing?.inbox_folder_id) {
+      this.errorMessage = 'Configure and save an inbox folder before uploading a file.';
+      return;
+    }
+
+    fileInput.value = '';
+    fileInput.click();
+  }
+
+  processInboxUpload(event: Event): void {
+    const input = event.target as HTMLInputElement;
+    const file = input.files?.[0];
+    input.value = '';
+    if (!file || !this.workspace?.routing?.inbox_folder_id) return;
+
+    const extension = file.name.slice(file.name.lastIndexOf('.')).toLowerCase();
+    if (!['.txt', '.pdf', '.docx', '.jpg', '.jpeg', '.png'].includes(extension)) {
+      this.errorMessage = 'Choose a TXT, PDF, DOCX, JPG, JPEG, or PNG file.';
+      return;
+    }
+
+    this.isProcessingUpload = true;
+    this.errorMessage = '';
+    this.successMessage = '';
+    this.driveService.uploadFile(file, this.workspace.routing.inbox_folder_id)
+      .pipe(takeUntil(this.destroy$))
+      .subscribe({
+        next: uploadedFile => {
+          const fileId = typeof uploadedFile?.id === 'string' ? uploadedFile.id : '';
+          if (!fileId) {
+            this.isProcessingUpload = false;
+            this.errorMessage = 'The uploaded file did not return a Drive ID.';
+            return;
+          }
+
+          this.workspaceService.processInboxUpload(this.workspaceId, fileId)
+            .pipe(takeUntil(this.destroy$))
+            .subscribe({
+              next: response => {
+                this.isProcessingUpload = false;
+                if (response.result.status === 'Failed') {
+                  this.errorMessage = `${file.name} did not match an enabled rule.`;
+                  return;
+                }
+                this.successMessage = response.result.duplicate
+                  ? `${file.name} was already processed.`
+                  : `${file.name} was processed${response.result.selected_rule_name ? ` by ${response.result.selected_rule_name}` : ''}.`;
+              },
+              error: error => {
+                this.isProcessingUpload = false;
+                this.errorMessage = error.error?.error || 'Unable to process the uploaded file.';
+              }
+            });
+        },
+        error: error => {
+          this.isProcessingUpload = false;
+          this.errorMessage = error.error?.error || error.message || 'Unable to upload the selected file to the inbox.';
+        }
+      });
   }
 
   private loadWorkspace(): void {

@@ -7,6 +7,7 @@
 	}"
 	[attr.role]="type === 'error' ? 'alert' : 'status'"
 	[attr.aria-live]="type === 'error' ? 'assertive' : 'polite'"
+	[attr.data-testid]="type === 'error' ? 'error-banner' : type === 'success' ? 'success-banner' : 'loading-spinner'"
 >
 	@switch (type) {
 		@case ('loading') {
@@ -23,7 +24,7 @@
 	<span class="min-w-0 flex-1 leading-6">{{ message }}</span>
 
 	@if (dismissible && type !== 'loading') {
-		<button mat-icon-button type="button" [attr.aria-label]="type === 'error' ? 'Dismiss error' : 'Dismiss success message'" (click)="dismissed.emit()">
+		<button mat-icon-button type="button" [attr.aria-label]="type === 'error' ? 'Dismiss error' : 'Dismiss success message'" (click)="dismissed.emit()" [attr.data-testid]="type === 'error' ? 'dismiss-error-button' : 'dismiss-success-button'">
 			<svg lucideX class="h-5 w-5" aria-hidden="true"></svg>
 		</button>
 	}
