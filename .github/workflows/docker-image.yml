@@ -174,8 +174,6 @@ jobs:
             FIREBASE_DATABASE_URL=${{ vars.FIREBASE_DATABASE_URL }}
             GOOGLE_CLIENT_ID=${{ vars.GOOGLE_CLIENT_ID }}
             PROCESSOR_API_URL=${{ steps.deploy-processor.outputs.url || steps.processor-url.outputs.url }}
-          secrets: |
-            ORCHESTRATOR_API_KEY=${{ vars.ORCHESTRATOR_API_KEY_SECRET }}:latest
 
       - name: Deploy UI
         id: deploy-ui
