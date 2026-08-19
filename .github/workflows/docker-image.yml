@@ -208,5 +208,4 @@ jobs:
           env_vars: |
             CORS_ORIGINS=${{ steps.deploy-ui.outputs.url }},${{ vars.UI_ORIGIN }}
             PROCESSOR_API_URL=${{ steps.deploy-processor.outputs.url || steps.processor-url.outputs.url }}
-          secrets: |
-            ORCHESTRATOR_API_KEY=${{ vars.ORCHESTRATOR_API_KEY_SECRET }}:latest
+          
