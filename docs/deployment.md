@@ -65,6 +65,7 @@ Configure these under **Settings > Secrets and variables > Actions > Variables**
 | `GOOGLE_CLIENT_ID` | Google OAuth web client ID |
 | `GOOGLE_PICKER_API_KEY` | Restricted Google Picker browser key |
 | `GOOGLE_SERVICE_ACCOUNT_EMAIL` | Service-account email used for file sharing |
+| `PROCESSOR_API_URL` | Public Cloud Run URL of the Python processor, without a trailing slash |
 | `UI_ORIGIN` | Optional custom UI origin, without a trailing slash |
 
 The workflow obtains the generated API URL from Cloud Run and injects it into the UI at container startup. It also adds the generated UI URL to API CORS automatically. `UI_ORIGIN` is only needed when a custom UI domain must also be allowed.
