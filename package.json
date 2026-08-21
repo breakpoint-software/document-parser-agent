@@ -1,0 +1,7 @@
+{
+  "name": "document-parser-agent",
+  "private": true,
+  "scripts": {
+    "start-all": "powershell -ExecutionPolicy Bypass -File .\\start-dev.ps1"
+  }
+}

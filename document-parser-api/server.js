@@ -3,7 +3,7 @@ const cors = require('cors');
 require('dotenv').config();
 
 const { initializeServices } = require('./src/config/services');
-const { createGoogleAuthMiddleware, requireOwnWorkspace, requireOwnUser } = require('./src/middleware/google-auth');
+const { createGoogleAuthMiddleware, createWorkspaceAuthorization, requireOwnUser } = require('./src/middleware/google-auth');
 const { createAuthController } = require('./src/controllers/auth-controller');
 const { createWorkspaceController } = require('./src/controllers/workspace-controller');
 const { createRuleController } = require('./src/controllers/rule-controller');
@@ -25,6 +25,7 @@ const allowedOrigins = (process.env.CORS_ORIGINS || 'http://localhost:4200,http:
   .filter(Boolean);
 const services = initializeServices();
 const requireGoogleAuth = createGoogleAuthMiddleware(services);
+const requireOwnWorkspace = createWorkspaceAuthorization(services);
 
 app.use(cors({
   origin: allowedOrigins,

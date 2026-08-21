@@ -1,6 +1,10 @@
 function createWorkspaceController({ admin, db, processorUrl, processorApiKey }) {
+  function getWorkspaceRef(req) {
+    return db.collection('workspaces').doc(req.params.workspaceId);
+  }
+
   async function getWorkspace(req, res) {
-    const workspaceRef = db.collection('workspaces').doc(req.user.uid);
+    const workspaceRef = getWorkspaceRef(req);
     const workspaceDoc = await workspaceRef.get();
     if (!workspaceDoc.exists) return res.status(404).json({ error: 'Workspace not found' });
     return res.json({ success: true, workspace: { id: workspaceDoc.id, ...workspaceDoc.data() } });
@@ -9,8 +13,10 @@ function createWorkspaceController({ admin, db, processorUrl, processorApiKey })
   async function createWorkspace(req, res) {
     const name = String(req.body.name || '').trim();
     if (!name) return res.status(400).json({ error: 'Missing required field: name' });
+    const workspaceRef = db.collection('workspaces').doc();
     const workspaceData = {
-      workspace_id: req.user.uid,
+      workspace_id: workspaceRef.id,
+      owner_id: req.user.uid,
       name,
       email: req.user.email,
       active: true,
@@ -18,8 +24,8 @@ function createWorkspaceController({ admin, db, processorUrl, processorApiKey })
       created_at: admin.firestore.FieldValue.serverTimestamp(),
       updated_at: admin.firestore.FieldValue.serverTimestamp()
     };
-    await db.collection('workspaces').doc(req.user.uid).set(workspaceData, { merge: true });
-    return res.status(201).json({ success: true, workspace: { ...workspaceData, id: req.user.uid } });
+    await workspaceRef.set(workspaceData);
+    return res.status(201).json({ success: true, workspace: { ...workspaceData, id: workspaceRef.id } });
   }
 
   async function updateWorkspace(req, res) {
@@ -33,17 +39,24 @@ function createWorkspaceController({ admin, db, processorUrl, processorApiKey })
       }
       updateData.execution_mode = req.body.execution_mode;
     }
-    await db.collection('workspaces').doc(req.user.uid).update(updateData);
+    await getWorkspaceRef(req).update(updateData);
     return getWorkspace(req, res);
   }
 
   async function listWorkspaces(req, res) {
-    const workspaceDoc = await db.collection('workspaces').doc(req.user.uid).get();
-    return res.json({ success: true, workspaces: workspaceDoc.exists ? [{ id: workspaceDoc.id, ...workspaceDoc.data() }] : [] });
+    const [ownedSnapshot, legacyWorkspace] = await Promise.all([
+      db.collection('workspaces').where('owner_id', '==', req.user.uid).get(),
+      db.collection('workspaces').doc(req.user.uid).get()
+    ]);
+    const workspaces = ownedSnapshot.docs.map(workspaceDoc => ({ id: workspaceDoc.id, ...workspaceDoc.data() }));
+    if (legacyWorkspace.exists && !workspaces.some(workspace => workspace.id === legacyWorkspace.id)) {
+      workspaces.unshift({ id: legacyWorkspace.id, ...legacyWorkspace.data() });
+    }
+    return res.json({ success: true, workspaces });
   }
 
   async function deleteWorkspace(req, res) {
-    await db.collection('workspaces').doc(req.user.uid).delete();
+    await getWorkspaceRef(req).delete();
     return res.json({ success: true, message: 'Workspace deleted successfully' });
   }
 
@@ -63,7 +76,7 @@ function createWorkspaceController({ admin, db, processorUrl, processorApiKey })
           'Content-Type': 'application/json',
           'Orchestrator-API-Key': processorApiKey
         },
-        body: JSON.stringify({ workspace_id: req.user.uid, file_id: fileId }),
+        body: JSON.stringify({ workspace_id: req.params.workspaceId, file_id: fileId }),
         signal: AbortSignal.timeout(120000)
       });
     } catch (error) {

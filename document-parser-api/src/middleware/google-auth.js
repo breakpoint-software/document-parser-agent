@@ -29,15 +29,23 @@ function createGoogleAuthMiddleware({ auth, googleClient }) {
   };
 }
 
-function requireOwnWorkspace(req, res, next) {
-  const workspaceId = req.params.workspaceId;
-  if (workspaceId !== req.user.uid) {
-    return res.status(403).json({
-      error: 'You do not have access to this workspace',
-      code: 'WORKSPACE_ACCESS_DENIED'
-    });
-  }
-  return next();
+function createWorkspaceAuthorization({ db }) {
+  return async function requireOwnWorkspace(req, res, next) {
+    const workspaceId = req.params.workspaceId;
+    const workspaceDoc = await db.collection('workspaces').doc(workspaceId).get();
+
+    if (!workspaceDoc.exists) {
+      return res.status(404).json({ error: 'Workspace not found' });
+    }
+
+    const workspace = workspaceDoc.data();
+    const isLegacyWorkspace = workspaceId === req.user.uid && workspace.workspace_id === req.user.uid;
+    if (workspace.owner_id !== req.user.uid && !isLegacyWorkspace) {
+      return res.status(403).json({ error: 'You do not have access to this workspace', code: 'WORKSPACE_ACCESS_DENIED' });
+    }
+
+    return next();
+  };
 }
 
 function requireOwnUser(req, res, next) {
@@ -51,4 +59,4 @@ function requireOwnUser(req, res, next) {
   return next();
 }
 
-module.exports = { createGoogleAuthMiddleware, requireOwnWorkspace, requireOwnUser };
+module.exports = { createGoogleAuthMiddleware, createWorkspaceAuthorization, requireOwnUser };

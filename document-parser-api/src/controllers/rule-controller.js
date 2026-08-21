@@ -24,7 +24,7 @@ function missingFields(rule) {
 }
 
 function createRuleController({ admin, db }) {
-  const rules = req => db.collection('workspaces').doc(req.user.uid).collection('rules');
+  const rules = req => db.collection('workspaces').doc(req.params.workspaceId).collection('rules');
 
   async function listRules(req, res) {
     const snapshot = await rules(req).orderBy('updated_at', 'desc').get();

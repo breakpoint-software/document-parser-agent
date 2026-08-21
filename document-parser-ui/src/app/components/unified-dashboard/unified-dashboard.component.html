@@ -198,7 +198,7 @@
           </article>
         </div>
         <div *ngIf="filteredRules.length > 0" class="hidden overflow-x-auto xl:block">
-        <table mat-table [dataSource]="filteredRules" class="w-full">
+        <table mat-table [dataSource]="filteredRules" class="rules-grid w-full">
           <ng-container matColumnDef="enabled">
             <th mat-header-cell *matHeaderCellDef>Status</th>
             <td mat-cell *matCellDef="let rule"><mat-slide-toggle [checked]="rule.is_enabled" (change)="toggleRuleEnabled(rule)" [attr.aria-label]="(rule.is_enabled ? 'Disable ' : 'Enable ') + rule.rule_name"></mat-slide-toggle></td>

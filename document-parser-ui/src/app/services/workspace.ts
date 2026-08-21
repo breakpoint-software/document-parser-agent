@@ -40,6 +40,12 @@ export class WorkspaceService {
     );
   }
 
+  createWorkspace(name: string): Observable<Workspace> {
+    return this.http.post<WorkspaceResponse>(this.apiUrl, { name }).pipe(
+      map(response => this.normalize(response.workspace))
+    );
+  }
+
   processInboxUpload(workspaceId: string, fileId: string): Observable<ProcessInboxUploadResponse> {
     const url = `${this.apiUrl}/${encodeURIComponent(workspaceId)}/process-inbox-upload`;
     return this.http.post<ProcessInboxUploadResponse>(url, { file_id: fileId });

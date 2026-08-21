@@ -1,6 +1,6 @@
 import { CommonModule } from '@angular/common';
 import { Component, OnDestroy, OnInit } from '@angular/core';
-import { ActivatedRoute } from '@angular/router';
+import { ActivatedRoute, Router } from '@angular/router';
 import { MatButtonModule } from '@angular/material/button';
 import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatInputModule } from '@angular/material/input';
@@ -9,7 +9,7 @@ import { MatSelectModule } from '@angular/material/select';
 import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
 import { LucideFolderOpen, LucidePencil, LucideSave, LucideUpload, LucideX } from '@lucide/angular';
 import { Subject } from 'rxjs';
-import { takeUntil } from 'rxjs/operators';
+import { switchMap, takeUntil } from 'rxjs/operators';
 import { ExtractionSchemeSummary, Workspace } from '../../models';
 import { WorkspaceService } from '../../services/workspace';
 import { GooglePickerService } from '../../services/google-picker.service';
@@ -47,6 +47,7 @@ export class WorkspaceDashboardComponent implements OnInit, OnDestroy {
   successMessage = '';
   pickerReady = false;
   isEditing = false;
+  isNewWorkspace = false;
   isProcessingUpload = false;
   extractionSchemes: Array<Pick<ExtractionSchemeSummary, 'schema_id' | 'name' | 'version'>> = [];
   readonly routingForm;
@@ -60,6 +61,7 @@ export class WorkspaceDashboardComponent implements OnInit, OnDestroy {
     private readonly driveService: GoogleDriveService,
     private readonly extractionSchemeService: ExtractionSchemeService,
     private readonly route: ActivatedRoute,
+    private readonly router: Router,
   ) {
     this.routingForm = formBuilder.nonNullable.group({
       name: ['', [Validators.required, Validators.maxLength(120)]],
@@ -72,13 +74,22 @@ export class WorkspaceDashboardComponent implements OnInit, OnDestroy {
   }
 
   ngOnInit(): void {
-    this.workspaceId = this.route.snapshot.paramMap.get('workspaceId') || '';
-    if (!this.workspaceId) {
-      this.errorMessage = 'Invalid workspace ID';
-      return;
-    }
-    this.loadWorkspace();
     this.loadExtractionSchemes();
+    this.route.paramMap.pipe(takeUntil(this.destroy$)).subscribe(params => {
+      this.workspaceId = params.get('workspaceId') || '';
+      this.isNewWorkspace = this.workspaceId === 'new';
+      if (this.isNewWorkspace) {
+        this.startNewWorkspace();
+        return;
+      }
+      if (!this.workspaceId) {
+        this.workspace = null;
+        this.errorMessage = 'Invalid workspace ID';
+        return;
+      }
+      this.cancelEditing();
+      this.loadWorkspace(this.workspaceId);
+    });
     this.pickerService.pickerReady$.pipe(takeUntil(this.destroy$)).subscribe(ready => this.pickerReady = ready);
     this.pickerService.selectedItems$.pipe(takeUntil(this.destroy$)).subscribe(items => {
       const item = items[0];
@@ -106,6 +117,10 @@ export class WorkspaceDashboardComponent implements OnInit, OnDestroy {
   }
 
   cancelEditing(): void {
+    if (this.isNewWorkspace) {
+      void this.router.navigate(['/']);
+      return;
+    }
     if (!this.workspace) return;
     this.routingForm.patchValue({
       name: this.workspace.name,
@@ -121,7 +136,7 @@ export class WorkspaceDashboardComponent implements OnInit, OnDestroy {
       return;
     }
     const value = this.routingForm.getRawValue();
-    this.workspaceService.updateWorkspace(this.workspaceId, {
+    const workspaceUpdate: Partial<Workspace> = {
       name: value.name.trim(),
       execution_mode: 'single_source',
       routing: {
@@ -133,12 +148,22 @@ export class WorkspaceDashboardComponent implements OnInit, OnDestroy {
         selection_strategy: 'llm',
         multiple_match_policy: 'highest_priority'
       }
-    }).pipe(takeUntil(this.destroy$)).subscribe({
+    };
+    const saveRequest = this.isNewWorkspace
+      ? this.workspaceService.createWorkspace(value.name.trim()).pipe(
+        switchMap(workspace => this.workspaceService.updateWorkspace(workspace.id || workspace.workspace_id, workspaceUpdate))
+      )
+      : this.workspaceService.updateWorkspace(this.workspaceId, workspaceUpdate);
+
+    saveRequest.pipe(takeUntil(this.destroy$)).subscribe({
       next: workspace => {
         this.workspace = workspace;
+        this.workspaceId = workspace.id || workspace.workspace_id;
+        this.isNewWorkspace = false;
         this.isEditing = false;
         this.routingForm.disable();
         this.successMessage = 'Workspace routing saved.';
+        void this.router.navigate(['/dashboard', this.workspaceId]);
       },
       error: error => this.errorMessage = error.error?.error || 'Failed to save workspace routing.'
     });
@@ -206,13 +231,23 @@ export class WorkspaceDashboardComponent implements OnInit, OnDestroy {
       });
   }
 
-  private loadWorkspace(): void {
+  private loadWorkspace(workspaceId: string): void {
     this.isLoading = true;
     this.errorMessage = '';
-    this.workspaceService.getWorkspace(this.workspaceId)
+    this.successMessage = '';
+    this.workspace = null;
+    this.routingForm.reset({
+      name: '',
+      inbox_folder_id: '',
+      inbox_folder_name: '',
+      schema_id: this.extractionSchemes[0]?.schema_id || 'arg-invoices',
+      include_subfolders: false
+    });
+    this.workspaceService.getWorkspace(workspaceId)
       .pipe(takeUntil(this.destroy$))
       .subscribe({
         next: workspace => {
+          if (workspaceId !== this.workspaceId) return;
           this.workspace = workspace;
           this.routingForm.controls.name.setValue(workspace.name);
           if (workspace.routing) {
@@ -221,11 +256,28 @@ export class WorkspaceDashboardComponent implements OnInit, OnDestroy {
           this.isLoading = false;
         },
         error: error => {
+          if (workspaceId !== this.workspaceId) return;
           console.error('Error loading workspace:', error);
           this.isLoading = false;
           this.errorMessage = 'Failed to load workspace.';
         }
       });
+  }
+
+  private startNewWorkspace(): void {
+    this.workspace = null;
+    this.isLoading = false;
+    this.errorMessage = '';
+    this.successMessage = '';
+    this.isEditing = true;
+    this.routingForm.reset({
+      name: '',
+      inbox_folder_id: '',
+      inbox_folder_name: '',
+      schema_id: this.extractionSchemes[0]?.schema_id || 'arg-invoices',
+      include_subfolders: false
+    });
+    this.routingForm.enable();
   }
 
   private loadExtractionSchemes(): void {

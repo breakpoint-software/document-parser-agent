@@ -7,7 +7,11 @@
     <a mat-icon-button routerLink="/" aria-label="Document Parser home" matTooltip="Home">
       <svg lucideFileScan class="h-7 w-7" aria-hidden="true"></svg>
     </a>
-    <span class="ml-2 truncate text-base font-semibold">{{ pageTitle() }}</span>
+    <span class="ml-2 hidden truncate text-base font-semibold sm:inline">{{ pageTitle() }}</span>
+    <button *ngIf="isAuthenticated()" type="button" class="workspace-picker ml-2" (click)="openWorkspaceSelector()" aria-label="Select workspace">
+      <svg lucideFolderKanban class="h-4 w-4 shrink-0" aria-hidden="true"></svg>
+      <span class="truncate">{{ currentWorkspace() }}</span>
+    </button>
 
     <span class="flex-1"></span>
 

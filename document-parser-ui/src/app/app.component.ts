@@ -4,6 +4,7 @@ import { Component, computed, effect, inject, signal } from '@angular/core';
 import { toSignal } from '@angular/core/rxjs-interop';
 import { MatButtonModule } from '@angular/material/button';
 import { MatDividerModule } from '@angular/material/divider';
+import { MatDialog, MatDialogModule } from '@angular/material/dialog';
 import { MatListModule } from '@angular/material/list';
 import { MatSidenav, MatSidenavModule } from '@angular/material/sidenav';
 import { MatTooltipModule } from '@angular/material/tooltip';
@@ -11,6 +12,7 @@ import { MatToolbarModule } from '@angular/material/toolbar';
 import { NavigationEnd, Router, RouterModule } from '@angular/router';
 import {
   LucideFileScan,
+  LucideFolderKanban,
   LucideHouse,
   LucideLayoutDashboard,
   LucideLogOut,
@@ -21,6 +23,9 @@ import {
 } from '@lucide/angular';
 import { filter, map, startWith } from 'rxjs';
 import { FirebaseAuthService } from './services/firebase-auth.service';
+import { Workspace } from './models';
+import { WorkspaceService } from './services/workspace';
+import { WorkspaceSelectorDialogComponent, WorkspaceSelectorDialogData } from './components/workspace-selector-dialog/workspace-selector-dialog.component';
 
 interface Breadcrumb {
   label: string;
@@ -35,11 +40,13 @@ interface Breadcrumb {
     RouterModule,
     MatButtonModule,
     MatDividerModule,
+    MatDialogModule,
     MatListModule,
     MatSidenavModule,
     MatTooltipModule,
     MatToolbarModule,
     LucideFileScan,
+    LucideFolderKanban,
     LucideHouse,
     LucideLayoutDashboard,
     LucideLogOut,
@@ -48,13 +55,16 @@ interface Breadcrumb {
     LucideSun,
     LucideUserRound
   ],
-  templateUrl: './app.component.html'
+  templateUrl: './app.component.html',
+  styleUrl: './app.component.scss'
 })
 export class AppComponent {
   private static readonly workspaceStorageKey = 'doc-parser-workspace-id';
   private readonly authService = inject(FirebaseAuthService);
   private readonly breakpointObserver = inject(BreakpointObserver);
+  private readonly dialog = inject(MatDialog);
   private readonly router = inject(Router);
+  private readonly workspaceService = inject(WorkspaceService);
   private readonly currentUrl = toSignal(
     this.router.events.pipe(
       filter((event): event is NavigationEnd => event instanceof NavigationEnd),
@@ -70,6 +80,7 @@ export class AppComponent {
   );
   readonly isAuthenticated = toSignal(this.authService.isAuthenticated$, { initialValue: false });
   readonly isDarkMode = signal(this.getInitialTheme());
+  readonly workspaces = signal<Workspace[]>([]);
   private readonly workspaceId = computed(() => {
     const routeMatch = this.currentUrl().match(/^\/(?:dashboard|rules)\/([^/?#]+)/);
     return routeMatch
@@ -78,6 +89,9 @@ export class AppComponent {
   });
 
   readonly dashboardLink = computed(() => this.workspaceLink('dashboard'));
+  readonly currentWorkspace = computed(() =>
+    this.workspaces().find(workspace => this.workspaceKey(workspace) === this.workspaceId())?.name || 'Select workspace'
+  );
   readonly pageTitle = computed(() => {
     const url = this.currentUrl();
     if (url.startsWith('/rules/')) return 'Rules';
@@ -119,6 +133,14 @@ export class AppComponent {
     });
 
     effect(() => {
+      if (!this.isAuthenticated()) {
+        this.workspaces.set([]);
+        return;
+      }
+      this.loadWorkspaces();
+    });
+
+    effect(() => {
       const darkMode = this.isDarkMode();
       document.documentElement.classList.toggle('dark', darkMode);
       document.documentElement.style.colorScheme = darkMode ? 'dark' : 'light';
@@ -128,6 +150,27 @@ export class AppComponent {
 
   toggleTheme(): void {
     this.isDarkMode.update(value => !value);
+  }
+
+  selectWorkspace(workspace: Workspace): void {
+    void this.router.navigate(['/dashboard', this.workspaceKey(workspace)]);
+  }
+
+  openWorkspaceSelector(): void {
+    this.dialog.open<WorkspaceSelectorDialogComponent, WorkspaceSelectorDialogData, Workspace | 'new'>(WorkspaceSelectorDialogComponent, {
+      width: '42rem',
+      maxWidth: 'calc(100vw - 2rem)',
+      data: {
+        currentWorkspaceId: this.workspaceId() || '',
+        workspaces: this.workspaces()
+      }
+    }).afterClosed().subscribe(workspace => {
+      if (workspace === 'new') {
+        void this.router.navigate(['/dashboard', 'new']);
+      } else if (workspace) {
+        this.selectWorkspace(workspace);
+      }
+    });
   }
 
   closeMobileDrawer(drawer: MatSidenav): void {
@@ -150,6 +193,17 @@ export class AppComponent {
   private workspaceLink(section: 'dashboard' | 'rules'): string[] {
     const workspaceId = this.workspaceId();
     return workspaceId ? ['/', section, workspaceId] : ['/'];
+  }
+
+  private loadWorkspaces(): void {
+    this.workspaceService.getUserWorkspaces().subscribe({
+      next: workspaces => this.workspaces.set(workspaces),
+      error: () => this.workspaces.set([])
+    });
+  }
+
+  workspaceKey(workspace: Workspace): string {
+    return workspace.id || workspace.workspace_id;
   }
 
   private getInitialTheme(): boolean {

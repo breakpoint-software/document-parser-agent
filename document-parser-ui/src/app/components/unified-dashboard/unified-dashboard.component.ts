@@ -1,4 +1,4 @@
-import { Component, inject, Input, OnDestroy, OnInit } from '@angular/core';
+import { Component, inject, Input, OnChanges, OnDestroy, OnInit, SimpleChanges } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormArray, FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
 import { ActivatedRoute } from '@angular/router';
@@ -63,7 +63,7 @@ import { StatusBanner } from '../../shared/components/status-banner/status-banne
   templateUrl: './unified-dashboard.component.html',
   styleUrl: './unified-dashboard.component.scss'
 })
-export class RulesManagementComponent implements OnInit, OnDestroy {
+export class RulesManagementComponent implements OnInit, OnChanges, OnDestroy {
   private static readonly ruleConditionFields = new Set([
     'supplier_tax_id',
     'buyer_tax_id',
@@ -102,6 +102,7 @@ export class RulesManagementComponent implements OnInit, OnDestroy {
   } | null = null;
 
   private destroy$ = new Subject<void>();
+  private isInitialized = false;
   constructor(
     private googlePickerService: GooglePickerService,
     private googleDriveService: GoogleDriveService,
@@ -119,6 +120,22 @@ export class RulesManagementComponent implements OnInit, OnDestroy {
     }
 
     this.initializePage();
+    this.isInitialized = true;
+  }
+
+  ngOnChanges(changes: SimpleChanges): void {
+    if (!this.isInitialized || !changes['workspaceId'] || changes['workspaceId'].firstChange) {
+      return;
+    }
+
+    this.showAddForm = false;
+    this.editingRule = null;
+    this.deletingRuleId = null;
+    this.errorMessage = '';
+    this.successMessage = '';
+    this.resetCreateForm();
+    this.loadRules();
+    this.loadScheme();
   }
 
   private initializePage(): void {
