@@ -13,13 +13,16 @@ import { NavigationEnd, Router, RouterModule } from '@angular/router';
 import {
   LucideFileScan,
   LucideFolderKanban,
+  LucideCircleHelp,
   LucideHouse,
   LucideLayoutDashboard,
   LucideLogOut,
   LucideMenu,
   LucideMoon,
-  LucideSun,
-  LucideUserRound
+  LucideChevronDown,
+  LucideSearch,
+  LucideUpload,
+  LucideSun
 } from '@lucide/angular';
 import { filter, map, startWith } from 'rxjs';
 import { FirebaseAuthService } from './services/firebase-auth.service';
@@ -47,13 +50,16 @@ interface Breadcrumb {
     MatToolbarModule,
     LucideFileScan,
     LucideFolderKanban,
+    LucideCircleHelp,
     LucideHouse,
     LucideLayoutDashboard,
     LucideLogOut,
     LucideMenu,
     LucideMoon,
+    LucideChevronDown,
+    LucideSearch,
     LucideSun,
-    LucideUserRound
+    LucideUpload
   ],
   templateUrl: './app.component.html',
   styleUrl: './app.component.scss'
@@ -104,6 +110,10 @@ export class AppComponent {
     const url = this.currentUrl();
     const workspaceId = this.workspaceId();
 
+    if (/^\/rules\/[^/]+\/(?:new|[^/]+\/edit)$/.test(url)) {
+      return [];
+    }
+
     if (url.startsWith('/rules/')) {
       return [
         { label: 'Home', route: ['/'] },
@@ -112,7 +122,7 @@ export class AppComponent {
       ];
     }
     if (url.startsWith('/dashboard/')) {
-      return [{ label: 'Home', route: ['/'] }, { label: 'Dashboard' }];
+      return [{ label: 'Dashboard' }];
     }
     if (url.startsWith('/test-oauth')) {
       return [{ label: 'Home', route: ['/'] }, { label: 'OAuth Test' }];
@@ -152,6 +162,14 @@ export class AppComponent {
     this.isDarkMode.update(value => !value);
   }
 
+  requestInboxUpload(): void {
+    window.dispatchEvent(new CustomEvent('docparser:upload-inbox'));
+  }
+
+  isWorkspaceDashboard(): boolean {
+    return this.currentUrl().startsWith('/dashboard/') && this.workspaceId() !== 'new';
+  }
+
   selectWorkspace(workspace: Workspace): void {
     void this.router.navigate(['/dashboard', this.workspaceKey(workspace)]);
   }
@@ -160,6 +178,8 @@ export class AppComponent {
     this.dialog.open<WorkspaceSelectorDialogComponent, WorkspaceSelectorDialogData, Workspace | 'new'>(WorkspaceSelectorDialogComponent, {
       width: '42rem',
       maxWidth: 'calc(100vw - 2rem)',
+      maxHeight: 'calc(100vh - 2rem)',
+      panelClass: 'workspace-selector-dialog-panel',
       data: {
         currentWorkspaceId: this.workspaceId() || '',
         workspaces: this.workspaces()

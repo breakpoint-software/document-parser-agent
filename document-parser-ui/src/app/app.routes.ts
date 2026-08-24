@@ -14,6 +14,14 @@ export const routes: Routes = [
     loadComponent: () => import('./components/workspace-dashboard/workspace-dashboard.component').then(module => module.WorkspaceDashboardComponent)
   },
   {
+    path: 'rules/:workspaceId/new',
+    loadComponent: () => import('./components/unified-dashboard/unified-dashboard.component').then(module => module.RulesManagementComponent)
+  },
+  {
+    path: 'rules/:workspaceId/:ruleId/edit',
+    loadComponent: () => import('./components/unified-dashboard/unified-dashboard.component').then(module => module.RulesManagementComponent)
+  },
+  {
     path: 'rules/:workspaceId',
     loadComponent: () => import('./components/unified-dashboard/unified-dashboard.component').then(module => module.RulesManagementComponent)
   },

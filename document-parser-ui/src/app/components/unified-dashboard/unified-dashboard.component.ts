@@ -1,7 +1,7 @@
 import { Component, inject, Input, OnChanges, OnDestroy, OnInit, SimpleChanges } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormArray, FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
-import { ActivatedRoute } from '@angular/router';
+import { ActivatedRoute, Router } from '@angular/router';
 import { MatButtonModule } from '@angular/material/button';
 import { MatCardModule } from '@angular/material/card';
 import { MatDialog, MatDialogModule } from '@angular/material/dialog';
@@ -86,6 +86,10 @@ export class RulesManagementComponent implements OnInit, OnChanges, OnDestroy {
   deletingRuleId: string | null = null;
   schemeFields: ExtractionSchemeField[] = [];
 
+  get isRuleEditor(): boolean {
+    return this.showAddForm || !!this.editingRule || !!this.route.snapshot.paramMap.get('ruleId') || this.route.snapshot.routeConfig?.path?.endsWith('/new') === true;
+  }
+
   readonly filterForm = this.formBuilder.nonNullable.group({
     searchTerm: '',
     statusFilter: this.formBuilder.nonNullable.control<'all' | 'enabled' | 'disabled'>('all'),
@@ -108,7 +112,8 @@ export class RulesManagementComponent implements OnInit, OnChanges, OnDestroy {
     private googleDriveService: GoogleDriveService,
     private ruleService: RuleService,
     private extractionSchemeService: ExtractionSchemeService,
-    private route: ActivatedRoute
+    private route: ActivatedRoute,
+    private router: Router
   ) {}
 
   ngOnInit(): void {
@@ -200,6 +205,7 @@ export class RulesManagementComponent implements OnInit, OnChanges, OnDestroy {
         next: rules => {
           this.rules = rules;
           this.isLoading = false;
+          this.openRouteEditor();
         },
         error: error => {
           this.isLoading = false;
@@ -286,6 +292,7 @@ export class RulesManagementComponent implements OnInit, OnChanges, OnDestroy {
           this.successMessage = 'Rule added successfully!';
           this.showAddForm = false;
           this.resetCreateForm();
+          this.goToDashboard();
         },
         error: error => {
           this.isLoading = false;
@@ -312,6 +319,7 @@ export class RulesManagementComponent implements OnInit, OnChanges, OnDestroy {
           this.isLoading = false;
           this.editingRule = null;
           this.successMessage = 'Rule updated successfully!';
+          this.goToDashboard();
         },
         error: error => {
           this.isLoading = false;
@@ -338,6 +346,14 @@ export class RulesManagementComponent implements OnInit, OnChanges, OnDestroy {
     this.setConditions(this.editRuleForm.controls.conditions, rule.conditions);
   }
 
+  navigateToCreate(): void {
+    void this.router.navigate(['/rules', this.workspaceId, 'new']);
+  }
+
+  navigateToEdit(rule: Rule): void {
+    void this.router.navigate(['/rules', this.workspaceId, rule.rule_id, 'edit']);
+  }
+
   saveEditedRule(): void {
     if (!this.editingRule) {
       return;
@@ -361,6 +377,7 @@ export class RulesManagementComponent implements OnInit, OnChanges, OnDestroy {
     this.editingRule = null;
     this.editRuleForm.reset();
     this.errorMessage = '';
+    this.goToDashboard();
   }
 
   /**
@@ -530,6 +547,24 @@ export class RulesManagementComponent implements OnInit, OnChanges, OnDestroy {
     this.showAddForm = false;
     this.resetCreateForm();
     this.errorMessage = '';
+    this.goToDashboard();
+  }
+
+  private openRouteEditor(): void {
+    const ruleId = this.route.snapshot.paramMap.get('ruleId');
+    if (this.route.snapshot.routeConfig?.path?.endsWith('/new')) {
+      this.showAddForm = true;
+      return;
+    }
+    if (ruleId) {
+      const rule = this.rules.find(candidate => candidate.rule_id === ruleId);
+      if (rule) this.startEditingRule(rule);
+      else this.errorMessage = 'Rule not found';
+    }
+  }
+
+  private goToDashboard(): void {
+    void this.router.navigate(['/dashboard', this.workspaceId]);
   }
 
   ngOnDestroy(): void {

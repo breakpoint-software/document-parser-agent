@@ -1,5 +1,5 @@
 import { CommonModule } from '@angular/common';
-import { Component, OnDestroy, OnInit } from '@angular/core';
+import { Component, ElementRef, HostListener, OnDestroy, OnInit, ViewChild } from '@angular/core';
 import { ActivatedRoute, Router } from '@angular/router';
 import { MatButtonModule } from '@angular/material/button';
 import { MatFormFieldModule } from '@angular/material/form-field';
@@ -7,7 +7,7 @@ import { MatInputModule } from '@angular/material/input';
 import { MatSlideToggleModule } from '@angular/material/slide-toggle';
 import { MatSelectModule } from '@angular/material/select';
 import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
-import { LucideFolderOpen, LucidePencil, LucideSave, LucideUpload, LucideX } from '@lucide/angular';
+import { LucideFolderOpen, LucidePencil } from '@lucide/angular';
 import { Subject } from 'rxjs';
 import { switchMap, takeUntil } from 'rxjs/operators';
 import { ExtractionSchemeSummary, Workspace } from '../../models';
@@ -31,15 +31,14 @@ import { StatusBanner } from '../../shared/components/status-banner/status-banne
     MatSelectModule,
     LucideFolderOpen,
     LucidePencil,
-    LucideSave,
-    LucideUpload,
-    LucideX,
     RulesManagementComponent,
     StatusBanner
   ],
-  templateUrl: './workspace-dashboard.component.html'
+  templateUrl: './workspace-dashboard.component.html',
+  styleUrl: './workspace-dashboard.component.scss'
 })
 export class WorkspaceDashboardComponent implements OnInit, OnDestroy {
+  @ViewChild('inboxUploadInput') private inboxUploadInput?: ElementRef<HTMLInputElement>;
   workspace: Workspace | null = null;
   workspaceId = '';
   isLoading = false;
@@ -96,6 +95,7 @@ export class WorkspaceDashboardComponent implements OnInit, OnDestroy {
       if (!item) return;
       this.driveService.getFullPath(item.id).pipe(takeUntil(this.destroy$)).subscribe(path => {
         this.routingForm.patchValue({ inbox_folder_id: item.id, inbox_folder_name: path });
+        this.routingForm.markAsDirty();
       });
     });
   }
@@ -114,6 +114,7 @@ export class WorkspaceDashboardComponent implements OnInit, OnDestroy {
     this.successMessage = '';
     this.isEditing = true;
     this.routingForm.enable();
+    this.routingForm.markAsPristine();
   }
 
   cancelEditing(): void {
@@ -179,6 +180,11 @@ export class WorkspaceDashboardComponent implements OnInit, OnDestroy {
     fileInput.click();
   }
 
+  @HostListener('window:docparser:upload-inbox')
+  openGlobalInboxUpload(): void {
+    if (this.inboxUploadInput) this.selectInboxUpload(this.inboxUploadInput.nativeElement);
+  }
+
   processInboxUpload(event: Event): void {
     const input = event.target as HTMLInputElement;
     const file = input.files?.[0];
@@ -229,6 +235,11 @@ export class WorkspaceDashboardComponent implements OnInit, OnDestroy {
           this.errorMessage = error.error?.error || error.message || 'Unable to upload the selected file to the inbox.';
         }
       });
+  }
+
+  extractionSchemeName(schemaId: string | null | undefined): string {
+    if (!schemaId) return 'Not configured';
+    return this.extractionSchemes.find(scheme => scheme.schema_id === schemaId)?.name || schemaId;
   }
 
   private loadWorkspace(workspaceId: string): void {

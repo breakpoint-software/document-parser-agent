@@ -1,13 +1,7 @@
-<div class="mx-auto max-w-7xl space-y-5 sm:space-y-6" data-testid="workspace-dashboard">
-  <header class="flex flex-wrap items-center gap-x-3 gap-y-2">
-    <h1 class="text-2xl font-semibold leading-tight sm:text-3xl">Dashboard</h1>
-    <span class="break-all text-sm text-neutral-500 dark:text-neutral-400">{{ workspaceId }}</span>
-    <div *ngIf="workspace || isNewWorkspace" class="ml-auto flex items-center gap-2">
-      <input #inboxUploadInput type="file" class="sr-only" accept=".txt,.pdf,.docx,.jpg,.jpeg,.png" aria-label="Upload a document to the inbox" (change)="processInboxUpload($event)">
-      <button *ngIf="workspace && !isEditing" mat-flat-button class="responsive-action" type="button" aria-label="Upload document to inbox" (click)="selectInboxUpload(inboxUploadInput)" [disabled]="isProcessingUpload"><svg lucideUpload class="responsive-action__icon mr-2 inline h-4 w-4" aria-hidden="true"></svg><span class="sr-only sm:not-sr-only">{{ isProcessingUpload ? 'Processing...' : 'Upload to Inbox' }}</span></button>
-      <button *ngIf="workspace && !isEditing" mat-stroked-button class="responsive-action" type="button" aria-label="Edit workspace" (click)="editRouting()" data-testid="edit-workspace-button"><svg lucidePencil class="responsive-action__icon mr-2 inline h-4 w-4" aria-hidden="true"></svg><span class="sr-only sm:not-sr-only">Edit</span></button>
-      <button *ngIf="isEditing" mat-button class="responsive-action" type="button" aria-label="Cancel workspace changes" (click)="cancelEditing()" data-testid="cancel-workspace-button"><svg lucideX class="responsive-action__icon mr-2 inline h-4 w-4" aria-hidden="true"></svg><span class="sr-only sm:not-sr-only">Cancel</span></button>
-      <button *ngIf="isEditing" mat-flat-button class="responsive-action" type="submit" form="workspace-settings-form" aria-label="Save workspace" data-testid="save-workspace-button"><svg lucideSave class="responsive-action__icon mr-2 inline h-4 w-4" aria-hidden="true"></svg><span class="sr-only sm:not-sr-only">Save</span></button>
+<div class="workspace-dashboard mx-auto max-w-7xl space-y-6" data-testid="workspace-dashboard">
+  <header class="dashboard-header">
+    <div class="dashboard-header__title">
+      <h1 class="text-2xl font-semibold leading-tight sm:text-3xl">Dashboard</h1>
     </div>
   </header>
 
@@ -15,34 +9,50 @@
   <app-status-banner *ngIf="errorMessage" type="error" [message]="errorMessage" (dismissed)="errorMessage = ''" data-testid="error-banner" />
   <app-status-banner *ngIf="successMessage" type="success" [message]="successMessage" (dismissed)="successMessage = ''" data-testid="success-banner" />
 
-  <section *ngIf="workspace || isNewWorkspace" class="space-y-4 border-b border-neutral-200 pb-6 dark:border-neutral-700" aria-label="Workspace settings">
-    <form id="workspace-settings-form" [formGroup]="routingForm" (ngSubmit)="saveRouting()" class="space-y-4" novalidate data-testid="workspace-settings-form">
-      <div class="grid gap-4 md:grid-cols-2">
-      <div>
-        <label for="workspace-name" class="mb-2 block font-medium">Workspace</label>
-        <mat-form-field appearance="outline" class="w-full">
+  <section *ngIf="workspace || isNewWorkspace" class="workspace-routing" aria-label="Workspace settings">
+    <input #inboxUploadInput type="file" class="sr-only" accept=".txt,.pdf,.docx,.jpg,.jpeg,.png" aria-label="Upload a document to the inbox" (change)="processInboxUpload($event)">
+    <div class="workspace-routing__header">
+      <h2>Workspace settings</h2>
+      <div class="workspace-routing__actions">
+        <button *ngIf="workspace && !isEditing" mat-stroked-button class="responsive-action" type="button" aria-label="Edit workspace" (click)="editRouting()" data-testid="edit-workspace-button"><svg lucidePencil class="responsive-action__icon mr-2 inline h-4 w-4" aria-hidden="true"></svg><span class="sr-only sm:not-sr-only">Edit</span></button>
+        <button *ngIf="isEditing" mat-button class="workspace-routing__cancel responsive-action" type="button" aria-label="Cancel workspace changes" (click)="cancelEditing()" data-testid="cancel-workspace-button"><span class="sr-only sm:not-sr-only">Cancel</span></button>
+        <button *ngIf="isEditing" mat-flat-button class="workspace-routing__save responsive-action" type="submit" form="workspace-settings-form" aria-label="Save workspace" [disabled]="routingForm.invalid || !routingForm.dirty || isLoading" data-testid="save-workspace-button"><span class="sr-only sm:not-sr-only">Save changes</span></button>
+      </div>
+    </div>
+    <form id="workspace-settings-form" [formGroup]="routingForm" (ngSubmit)="saveRouting()" novalidate data-testid="workspace-settings-form">
+      <div class="workspace-routing__grid">
+      <div class="workspace-routing__field">
+        <label for="workspace-name" class="workspace-routing__label">Workspace</label>
+        <p *ngIf="!isEditing" class="workspace-routing__value">{{ workspace?.name }}</p>
+        <mat-form-field *ngIf="isEditing" appearance="outline" class="w-full">
           <input id="workspace-name" matInput formControlName="name" data-testid="workspace-name-input">
           <mat-error data-testid="workspace-name-error">Enter a workspace name.</mat-error>
         </mat-form-field>
       </div>
-      <div>
-        <label for="inbox-folder" class="mb-2 block font-medium">Inbox folder</label>
-        <mat-form-field appearance="outline" class="w-full">
+      <div class="workspace-routing__field">
+        <label for="inbox-folder" class="workspace-routing__label">Inbox folder</label>
+        <p *ngIf="!isEditing" class="workspace-routing__value">{{ workspace?.routing?.inbox_folder_name || 'Not configured' }}</p>
+        <mat-form-field *ngIf="isEditing" appearance="outline" class="w-full">
           <input id="inbox-folder" matInput formControlName="inbox_folder_name" readonly data-testid="inbox-folder-input">
           <button mat-icon-button matSuffix type="button" aria-label="Select inbox folder" (click)="openInboxPicker()" [disabled]="!pickerReady || !isEditing" data-testid="open-inbox-picker-button"><svg lucideFolderOpen class="h-5 w-5" aria-hidden="true"></svg></button>
           <mat-error>Select an inbox folder.</mat-error>
         </mat-form-field>
       </div>
-      <div>
-        <label for="schema-id" class="mb-2 block font-medium">Extraction scheme</label>
-        <mat-form-field appearance="outline" class="w-full">
+      <div class="workspace-routing__field">
+        <label for="schema-id" class="workspace-routing__label">Extraction scheme</label>
+        <p *ngIf="!isEditing" class="workspace-routing__value">{{ extractionSchemeName(workspace?.routing?.schema_id) }}</p>
+        <mat-form-field *ngIf="isEditing" appearance="outline" class="w-full">
           <mat-select id="schema-id" formControlName="schema_id" data-testid="extraction-scheme-select">
             <mat-option *ngFor="let scheme of extractionSchemes" [value]="scheme.schema_id">{{ scheme.name }} (v{{ scheme.version }})</mat-option>
           </mat-select>
           <mat-error>Select an extraction scheme.</mat-error>
         </mat-form-field>
       </div>
-      <div class="flex items-center"><mat-slide-toggle formControlName="include_subfolders" data-testid="include-subfolders-toggle">Include subfolders</mat-slide-toggle></div>
+      <div class="workspace-routing__toggle" [class.workspace-routing__toggle--view]="!isEditing">
+        <mat-slide-toggle *ngIf="isEditing" formControlName="include_subfolders" data-testid="include-subfolders-toggle">Include subfolders</mat-slide-toggle>
+        <p *ngIf="!isEditing" class="workspace-routing__toggle-label">Include subfolders <span>{{ workspace?.routing?.include_subfolders ? 'Included' : 'Not included' }}</span></p>
+        <span>Process files in all subfolders within the selected folder.</span>
+      </div>
       </div>
     </form>
   </section>

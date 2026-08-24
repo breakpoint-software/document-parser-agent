@@ -1,30 +1,26 @@
 <a mat-raised-button href="#main-content" class="skip-link">Skip to main content</a>
-<div class="flex h-screen flex-col overflow-hidden bg-white text-[#1f1f1f] transition-colors duration-200 dark:bg-[#212121] dark:text-[#ececec]">
-  <mat-toolbar class="z-30 shrink-0 border-b border-[#e5e5e5] !bg-white px-3 !text-[#1f1f1f] transition-colors duration-200 sm:px-4 dark:border-[#383838] dark:!bg-[#212121] dark:!text-[#ececec]">
-    <button mat-icon-button type="button" aria-label="Open navigation" (click)="drawer.toggle()">
-      <svg lucideMenu class="h-5 w-5" aria-hidden="true"></svg>
-    </button>
-    <a mat-icon-button routerLink="/" aria-label="Document Parser home" matTooltip="Home">
-      <svg lucideFileScan class="h-7 w-7" aria-hidden="true"></svg>
-    </a>
-    <span class="ml-2 hidden truncate text-base font-semibold sm:inline">{{ pageTitle() }}</span>
-    <button *ngIf="isAuthenticated()" type="button" class="workspace-picker ml-2" (click)="openWorkspaceSelector()" aria-label="Select workspace">
-      <svg lucideFolderKanban class="h-4 w-4 shrink-0" aria-hidden="true"></svg>
-      <span class="truncate">{{ currentWorkspace() }}</span>
-    </button>
-
-    <span class="flex-1"></span>
-
-    <button mat-icon-button type="button" (click)="toggleTheme()" [attr.aria-label]="isDarkMode() ? 'Use light theme' : 'Use dark theme'" [matTooltip]="isDarkMode() ? 'Light theme' : 'Dark theme'">
-      <svg *ngIf="!isDarkMode()" lucideMoon class="h-5 w-5" aria-hidden="true"></svg>
-      <svg *ngIf="isDarkMode()" lucideSun class="h-5 w-5" aria-hidden="true"></svg>
-    </button>
-    <a mat-icon-button routerLink="/" aria-label="Account" matTooltip="Account">
-      <svg lucideUserRound class="h-6 w-6" aria-hidden="true"></svg>
-    </a>
+<div class="flex h-screen flex-col overflow-hidden bg-[#f7f8f7] text-[#1f1f1f] transition-colors duration-200 dark:bg-[#212121] dark:text-[#ececec]">
+  <mat-toolbar class="app-toolbar z-30 shrink-0 border-b border-[#e5e5e5] !bg-white px-3 !text-[#1f1f1f] transition-colors duration-200 sm:px-4 dark:border-[#383838] dark:!bg-[#212121] dark:!text-[#ececec]">
+    <div class="toolbar-left">
+      <button mat-icon-button type="button" aria-label="Open navigation" (click)="drawer.toggle()"><svg lucideMenu class="h-5 w-5" aria-hidden="true"></svg></button>
+      <a mat-icon-button routerLink="/" aria-label="Document Parser home" matTooltip="Home"><svg lucideFileScan class="h-7 w-7" aria-hidden="true"></svg></a>
+      <span class="app-toolbar__brand hidden truncate text-base font-semibold sm:inline">DocParser</span>
+      <button *ngIf="isAuthenticated()" type="button" class="workspace-picker" (click)="openWorkspaceSelector()" aria-label="Select workspace">
+        <svg lucideFolderKanban class="h-4 w-4 shrink-0" aria-hidden="true"></svg><span class="truncate">{{ currentWorkspace() }}</span><svg lucideChevronDown class="workspace-picker__chevron" aria-hidden="true"></svg>
+      </button>
+    </div>
+    <label style="visibility: hidden;" *ngIf="isAuthenticated()" class="toolbar-search" aria-label="Search"><svg lucideSearch aria-hidden="true"></svg><input type="search" placeholder="Search..." aria-label="Search"><kbd>⌘ K</kbd></label>
+    <div class="toolbar-right">
+      <button *ngIf="isAuthenticated() && isWorkspaceDashboard()" mat-flat-button class="toolbar-upload" type="button" (click)="requestInboxUpload()"><svg lucideUpload class="h-4 w-4" aria-hidden="true"></svg><span>Upload to Inbox</span></button>
+      <div *ngIf="isAuthenticated()" class="toolbar-utilities">
+        <button mat-icon-button type="button" style="display: none; "aria-label="Help" matTooltip="Help"><svg lucideCircleHelp class="h-5 w-5" aria-hidden="true"></svg></button>
+        <button mat-icon-button type="button" (click)="toggleTheme()" [attr.aria-label]="isDarkMode() ? 'Use light theme' : 'Use dark theme'" [matTooltip]="isDarkMode() ? 'Light theme' : 'Dark theme'"><svg *ngIf="!isDarkMode()" lucideMoon class="h-5 w-5" aria-hidden="true"></svg><svg *ngIf="isDarkMode()" lucideSun class="h-5 w-5" aria-hidden="true"></svg></button>
+        <a class="account-avatar" routerLink="/" aria-label="Account" matTooltip="Account">SS</a>
+      </div>
+    </div>
   </mat-toolbar>
 
-  <mat-sidenav-container class="min-h-0 flex-1 !bg-white transition-colors duration-200 dark:!bg-[#212121]">
+  <mat-sidenav-container class="min-h-0 flex-1 !bg-[#f7f8f7] transition-colors duration-200 dark:!bg-[#212121]">
     <mat-sidenav
       #drawer
       class="platform-nav w-72"
@@ -56,8 +52,8 @@
       </div>
     </mat-sidenav>
 
-    <mat-sidenav-content class="min-w-0 !bg-white transition-colors duration-200 dark:!bg-[#212121]">
-      <div class="mx-auto w-full max-w-[1440px] px-4 py-6 sm:px-8 lg:px-12 lg:py-10 2xl:px-16">
+    <mat-sidenav-content class="min-w-0 !bg-[#f7f8f7] transition-colors duration-200 dark:!bg-[#212121]">
+      <div class="mx-auto w-full max-w-[1440px] px-4 py-6 sm:px-8 lg:px-10 lg:py-8 2xl:px-14">
         <nav *ngIf="breadcrumbs().length > 1" aria-label="Breadcrumb" class="mb-4">
           <ol class="flex flex-wrap items-center gap-1 text-sm">
             <li *ngFor="let breadcrumb of breadcrumbs(); let last = last" class="flex items-center gap-1">

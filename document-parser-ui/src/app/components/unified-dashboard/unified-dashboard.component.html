@@ -1,18 +1,22 @@
 <div class="mx-auto max-w-7xl space-y-5 sm:space-y-6">
-  <header *ngIf="!embedded">
+  <header *ngIf="!embedded && !isRuleEditor">
     <h1 class="text-2xl font-semibold leading-tight sm:text-3xl">Rules Manager</h1>
+  </header>
+  <header *ngIf="!embedded && isRuleEditor" class="rule-page-heading">
+    <h1>{{ showAddForm ? 'Create rule' : 'Edit rule' }}</h1>
+    <p>{{ showAddForm ? 'Define the conditions and destination for this rule.' : 'Update the conditions and destination for this rule.' }}</p>
   </header>
 
   <app-status-banner *ngIf="isLoading" type="loading" message="Loading..." [dismissible]="false" />
   <app-status-banner *ngIf="errorMessage" type="error" [message]="errorMessage" (dismissed)="errorMessage = ''" />
   <app-status-banner *ngIf="successMessage" type="success" [message]="successMessage" (dismissed)="successMessage = ''" />
 
-  <mat-card appearance="outlined">
-    <mat-card-header class="px-4 pt-5 sm:px-6 sm:pt-6">
+  <mat-card appearance="outlined" [class.rule-editor-card]="isRuleEditor">
+    <mat-card-header *ngIf="!isRuleEditor" class="rules-card-header px-4 pt-5 sm:px-6 sm:pt-6">
       <mat-card-title class="text-xl leading-7">Rules</mat-card-title>
     </mat-card-header>
 
-    <mat-card-content class="rules-card-content space-y-6 px-4 pb-5 pt-4 sm:px-6 sm:pb-6">
+    <mat-card-content class="rules-card-content space-y-6 px-4 pb-5 pt-4 sm:px-6 sm:pb-6" [class.rule-editor-content]="isRuleEditor">
       <form *ngIf="!showAddForm && !editingRule" [formGroup]="filterForm" class="filter-toolbar">
         <label class="filter-search">
           <svg lucideSearch aria-hidden="true"></svg>
@@ -21,32 +25,39 @@
         </label>
 
         <div class="filter-pill filter-select">
-          <mat-select formControlName="sortOrder" aria-label="Sort rules" panelClass="filter-dropdown-panel" disableOptionCentering>
+          <mat-select formControlName="sortOrder" aria-label="Sort rules" panelClass="filter-dropdown-panel" panelWidth="200px" disableOptionCentering>
+            <mat-select-trigger>
+              <span>{{ filterForm.controls.sortOrder.value === 'newest' ? 'Newest' : filterForm.controls.sortOrder.value === 'oldest' ? 'Oldest' : 'Name' }}</span>
+              <svg lucideChevronsUpDown aria-hidden="true"></svg>
+            </mat-select-trigger>
             <mat-option value="newest">Newest</mat-option>
             <mat-option value="oldest">Oldest</mat-option>
             <mat-option value="name">Name</mat-option>
           </mat-select>
-          <svg lucideChevronsUpDown aria-hidden="true"></svg>
         </div>
 
         <div class="filter-pill filter-select filter-status">
-          <svg lucidePlus aria-hidden="true"></svg>
           <mat-select formControlName="statusFilter" aria-label="Filter rules by status" panelClass="filter-dropdown-panel" disableOptionCentering>
+            <mat-select-trigger>
+              <span>{{ filterForm.controls.statusFilter.value === 'all' ? 'Add filter' : filterForm.controls.statusFilter.value === 'enabled' ? 'Enabled' : 'Disabled' }}</span>
+              <svg lucideChevronDown aria-hidden="true"></svg>
+            </mat-select-trigger>
             <mat-option value="all">Add filter</mat-option>
             <mat-option value="enabled">Enabled</mat-option>
             <mat-option value="disabled">Disabled</mat-option>
           </mat-select>
-          <svg lucideChevronDown aria-hidden="true"></svg>
         </div>
 
-        <button mat-flat-button class="create-rule-button responsive-action" type="button" aria-label="Create rule" (click)="showAddForm = true">
+        <button mat-flat-button class="create-rule-button responsive-action" type="button" aria-label="Create rule" (click)="navigateToCreate()">
           <svg lucidePlus class="responsive-action__icon mr-2 inline h-4 w-4" aria-hidden="true"></svg>
           <span class="sr-only sm:not-sr-only">Create Rule</span>
         </button>
       </form>
 
-      <form *ngIf="showAddForm" [formGroup]="createRuleForm" (ngSubmit)="addRule()" class="space-y-6" aria-labelledby="create-rule-heading" novalidate>
-        <h2 id="create-rule-heading" class="text-xl">Create Rule</h2>
+      <form *ngIf="showAddForm" [formGroup]="createRuleForm" (ngSubmit)="addRule()" class="rule-editor" aria-labelledby="create-rule-heading" novalidate>
+        <header *ngIf="embedded" class="rule-editor__header"><h2 id="create-rule-heading">Create rule</h2><p>Define how incoming documents should be matched and routed.</p></header>
+        <section class="rule-editor__details">
+        <div class="rule-editor__section-heading rule-editor__section-heading--numbered"><span>1</span><h3>Rule name</h3></div>
         <div>
           <label for="create-rule-name" class="mb-2 block font-medium">Rule name</label>
           <mat-form-field appearance="outline" class="w-full">
@@ -65,16 +76,20 @@
             <mat-form-field appearance="outline" class="w-full"><input id="create-priority" matInput type="number" min="0" formControlName="priority"></mat-form-field>
           </div>
         </div>
-        <div formArrayName="conditions" class="space-y-3">
-          <div *ngFor="let condition of conditionControls('create').controls; let index = index" [formGroupName]="index" class="grid items-start gap-3 lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_minmax(0,1fr)_3rem]">
+        </section>
+        <section formArrayName="conditions" class="rule-editor__section">
+          <div class="rule-editor__section-heading rule-editor__section-heading--numbered"><span>2</span><div><h3>Conditions</h3><p>Choose the document details that should match this rule.</p></div></div>
+          <div *ngFor="let condition of conditionControls('create').controls; let index = index" [formGroupName]="index" class="rule-editor__condition">
             <mat-form-field appearance="outline" floatLabel="always" class="w-full min-w-0"><mat-label>Field</mat-label><mat-select formControlName="field"><mat-option *ngFor="let field of schemeFields" [value]="field.key">{{ field.label }}</mat-option></mat-select></mat-form-field>
             <mat-form-field appearance="outline" floatLabel="always" class="w-full min-w-0"><mat-label>Operator</mat-label><mat-select formControlName="operator"><mat-select-trigger>{{ operatorLabel(condition.controls.operator.value) }}</mat-select-trigger><mat-option *ngFor="let operator of operatorsFor(condition.controls.field.value)" [value]="operator">{{ operatorLabel(operator) }}</mat-option></mat-select></mat-form-field>
             <mat-form-field appearance="outline" floatLabel="always" class="w-full min-w-0"><mat-label>Value</mat-label><input matInput [type]="valueInputType(condition.controls.field.value)" formControlName="value"></mat-form-field>
             <button mat-icon-button class="justify-self-center" type="button" aria-label="Remove condition" (click)="removeCondition('create', index)" [disabled]="conditionControls('create').length === 1"><svg lucideTrash2 class="h-4 w-4" aria-hidden="true"></svg></button>
           </div>
-          <button mat-stroked-button class="responsive-action" type="button" aria-label="Add condition" (click)="addCondition('create')"><svg lucidePlus class="responsive-action__icon mr-2 inline h-4 w-4" aria-hidden="true"></svg><span class="sr-only sm:not-sr-only">Add condition</span></button>
-        </div>
-        <div class="grid gap-6 md:grid-cols-2">
+          <button mat-stroked-button class="rule-editor__add-condition responsive-action" type="button" aria-label="Add condition" (click)="addCondition('create')"><svg lucidePlus class="responsive-action__icon mr-2 inline h-4 w-4" aria-hidden="true"></svg><span class="sr-only sm:not-sr-only">Add condition</span></button>
+        </section>
+        <section class="rule-editor__section">
+          <div class="rule-editor__section-heading rule-editor__section-heading--numbered"><span>3</span><div><h3>Destination</h3><p>Choose where matching documents and extracted data are sent.</p></div></div>
+        <div class="rule-editor__destination grid gap-6 md:grid-cols-2">
           <div>
             <label for="create-target-folder" class="mb-2 block font-medium">Target folder</label>
             <mat-form-field appearance="outline" class="w-full">
@@ -102,18 +117,21 @@
             </mat-form-field>
           </div>
         </div>
-        <div><mat-slide-toggle formControlName="is_enabled">Enabled</mat-slide-toggle></div>
-        <div class="flex flex-wrap gap-3">
+        </section>
+        <div class="rule-editor__status"><mat-slide-toggle formControlName="is_enabled">Enabled</mat-slide-toggle></div>
+        <footer class="rule-editor__actions">
           <button mat-flat-button class="responsive-action" type="submit" aria-label="Create rule" [disabled]="isLoading"><svg lucideSave class="responsive-action__icon mr-2 inline h-4 w-4" aria-hidden="true"></svg><span class="sr-only sm:not-sr-only">Create Rule</span></button>
           <button mat-stroked-button class="responsive-action" type="button" aria-label="Cancel creating rule" (click)="cancelAddRule()"><svg lucideX class="responsive-action__icon mr-2 inline h-4 w-4" aria-hidden="true"></svg><span class="sr-only sm:not-sr-only">Cancel</span></button>
-        </div>
+        </footer>
       </form>
 
-      <form *ngIf="editingRule" [formGroup]="editRuleForm" (ngSubmit)="saveEditedRule()" class="space-y-6" aria-labelledby="edit-rule-heading" novalidate>
-        <div class="flex flex-wrap items-center gap-3">
+      <form *ngIf="editingRule" [formGroup]="editRuleForm" (ngSubmit)="saveEditedRule()" class="rule-editor" aria-labelledby="edit-rule-heading" novalidate>
+        <header *ngIf="embedded" class="rule-editor__header rule-editor__header--edit">
           <button mat-icon-button type="button" aria-label="Back to rules" (click)="cancelEditingRule()"><svg lucideArrowLeft class="h-5 w-5" aria-hidden="true"></svg></button>
-          <div><h2 id="edit-rule-heading" class="text-xl">Edit Rule</h2><p class="text-sm">{{ editingRule.rule_id }}</p></div>
-        </div>
+          <div><h2 id="edit-rule-heading">Edit rule</h2><p>Update how documents are matched and routed.</p></div>
+        </header>
+        <section class="rule-editor__details">
+        <div class="rule-editor__section-heading rule-editor__section-heading--numbered"><span>1</span><h3>Rule name</h3></div>
         <div>
           <label for="edit-rule-name" class="mb-2 block font-medium">Rule name</label>
           <mat-form-field appearance="outline" class="w-full">
@@ -132,16 +150,20 @@
             <mat-form-field appearance="outline" class="w-full"><input id="edit-priority" matInput type="number" min="0" formControlName="priority"></mat-form-field>
           </div>
         </div>
-        <div formArrayName="conditions" class="space-y-3">
-          <div *ngFor="let condition of conditionControls('edit').controls; let index = index" [formGroupName]="index" class="grid items-start gap-3 lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_minmax(0,1fr)_3rem]">
+        </section>
+        <section formArrayName="conditions" class="rule-editor__section">
+          <div class="rule-editor__section-heading rule-editor__section-heading--numbered"><span>2</span><div><h3>Conditions</h3><p>Choose the document details that should match this rule.</p></div></div>
+          <div *ngFor="let condition of conditionControls('edit').controls; let index = index" [formGroupName]="index" class="rule-editor__condition">
             <mat-form-field appearance="outline" floatLabel="always" class="w-full min-w-0"><mat-label>Field</mat-label><mat-select formControlName="field"><mat-option *ngFor="let field of schemeFields" [value]="field.key">{{ field.label }}</mat-option></mat-select></mat-form-field>
             <mat-form-field appearance="outline" floatLabel="always" class="w-full min-w-0"><mat-label>Operator</mat-label><mat-select formControlName="operator"><mat-select-trigger>{{ operatorLabel(condition.controls.operator.value) }}</mat-select-trigger><mat-option *ngFor="let operator of operatorsFor(condition.controls.field.value)" [value]="operator">{{ operatorLabel(operator) }}</mat-option></mat-select></mat-form-field>
             <mat-form-field appearance="outline" floatLabel="always" class="w-full min-w-0"><mat-label>Value</mat-label><input matInput [type]="valueInputType(condition.controls.field.value)" formControlName="value"></mat-form-field>
             <button mat-icon-button class="justify-self-center" type="button" aria-label="Remove condition" (click)="removeCondition('edit', index)" [disabled]="conditionControls('edit').length === 1"><svg lucideTrash2 class="h-4 w-4" aria-hidden="true"></svg></button>
           </div>
-          <button mat-stroked-button class="responsive-action" type="button" aria-label="Add condition" (click)="addCondition('edit')"><svg lucidePlus class="responsive-action__icon mr-2 inline h-4 w-4" aria-hidden="true"></svg><span class="sr-only sm:not-sr-only">Add condition</span></button>
-        </div>
-        <div class="grid gap-6 md:grid-cols-2">
+          <button mat-stroked-button class="rule-editor__add-condition responsive-action" type="button" aria-label="Add condition" (click)="addCondition('edit')"><svg lucidePlus class="responsive-action__icon mr-2 inline h-4 w-4" aria-hidden="true"></svg><span class="sr-only sm:not-sr-only">Add condition</span></button>
+        </section>
+        <section class="rule-editor__section">
+          <div class="rule-editor__section-heading rule-editor__section-heading--numbered"><span>3</span><div><h3>Destination</h3><p>Choose where matching documents and extracted data are sent.</p></div></div>
+        <div class="rule-editor__destination grid gap-6 md:grid-cols-2">
           <div>
             <label for="edit-target-folder" class="mb-2 block font-medium">Target folder</label>
             <mat-form-field appearance="outline" class="w-full">
@@ -167,11 +189,12 @@
             </mat-form-field>
           </div>
         </div>
-        <div><mat-slide-toggle formControlName="is_enabled">Enabled</mat-slide-toggle></div>
-        <div class="flex flex-wrap gap-3">
+        <div class=""><mat-slide-toggle formControlName="is_enabled">Enabled</mat-slide-toggle></div>
+        </section>
+        <footer class="rule-editor__actions">
           <button mat-flat-button class="responsive-action" type="submit" aria-label="Save rule changes" [disabled]="isLoading"><svg lucideSave class="responsive-action__icon mr-2 inline h-4 w-4" aria-hidden="true"></svg><span class="sr-only sm:not-sr-only">Save Changes</span></button>
           <button mat-stroked-button class="responsive-action" type="button" aria-label="Cancel editing rule" (click)="cancelEditingRule()"><svg lucideX class="responsive-action__icon mr-2 inline h-4 w-4" aria-hidden="true"></svg><span class="sr-only sm:not-sr-only">Cancel</span></button>
-        </div>
+        </footer>
       </form>
 
       <div *ngIf="!showAddForm && !editingRule">
@@ -192,7 +215,7 @@
               <dt>Updated</dt><dd>{{ rule.updated_at | date: 'mediumDate' }}</dd>
             </dl>
             <div class="flex flex-wrap gap-2">
-              <button mat-stroked-button class="responsive-action" type="button" [attr.aria-label]="'Edit ' + rule.rule_name" (click)="startEditingRule(rule)"><svg lucidePencil class="responsive-action__icon mr-2 inline h-4 w-4" aria-hidden="true"></svg><span class="sr-only sm:not-sr-only">Edit</span></button>
+              <button mat-stroked-button class="responsive-action" type="button" [attr.aria-label]="'Edit ' + rule.rule_name" (click)="navigateToEdit(rule)"><svg lucidePencil class="responsive-action__icon mr-2 inline h-4 w-4" aria-hidden="true"></svg><span class="sr-only sm:not-sr-only">Edit</span></button>
               <button mat-button class="responsive-action" type="button" [attr.aria-label]="'Delete ' + rule.rule_name" (click)="deleteRule(rule.rule_id)" [disabled]="deletingRuleId === rule.rule_id"><svg lucideTrash2 class="responsive-action__icon mr-2 inline h-4 w-4" aria-hidden="true"></svg><span class="sr-only sm:not-sr-only">Delete</span></button>
             </div>
           </article>
@@ -222,7 +245,7 @@
           <ng-container matColumnDef="actions">
             <th mat-header-cell *matHeaderCellDef>Actions</th>
             <td mat-cell *matCellDef="let rule" class="whitespace-nowrap">
-              <button mat-icon-button type="button" aria-label="Edit rule" (click)="startEditingRule(rule)"><svg lucidePencil class="h-4 w-4" aria-hidden="true"></svg></button>
+              <button mat-icon-button type="button" aria-label="Edit rule" (click)="navigateToEdit(rule)"><svg lucidePencil class="h-4 w-4" aria-hidden="true"></svg></button>
               <button mat-icon-button type="button" aria-label="Delete rule" (click)="deleteRule(rule.rule_id)" [disabled]="deletingRuleId === rule.rule_id"><svg lucideTrash2 class="h-4 w-4" aria-hidden="true"></svg></button>
             </td>
           </ng-container>
