@@ -11,7 +11,7 @@
   <app-status-banner *ngIf="errorMessage" type="error" [message]="errorMessage" (dismissed)="errorMessage = ''" />
   <app-status-banner *ngIf="successMessage" type="success" [message]="successMessage" (dismissed)="successMessage = ''" />
 
-  <mat-card appearance="outlined" [class.rule-editor-card]="isRuleEditor">
+  <mat-card appearance="outlined" class="rules-card" [class.rule-editor-card]="isRuleEditor">
     <mat-card-header *ngIf="!isRuleEditor" class="rules-card-header px-4 pt-5 sm:px-6 sm:pt-6">
       <mat-card-title class="text-xl leading-7">Rules</mat-card-title>
     </mat-card-header>
@@ -59,8 +59,8 @@
         <section class="rule-editor__details">
         <div class="rule-editor__section-heading rule-editor__section-heading--numbered"><span>1</span><h3>Rule name</h3></div>
         <div>
-          <label for="create-rule-name" class="mb-2 block font-medium">Rule name</label>
           <mat-form-field appearance="outline" class="w-full">
+            <mat-label>Rule name</mat-label>
             <input id="create-rule-name" matInput formControlName="rule_name" autocomplete="off">
             <mat-error *ngIf="createRuleForm.controls.rule_name.hasError('required')">Rule name is required.</mat-error>
             <mat-error *ngIf="createRuleForm.controls.rule_name.hasError('maxlength')">Use 120 characters or fewer.</mat-error>
@@ -68,12 +68,10 @@
         </div>
         <div class="grid gap-4 md:grid-cols-[1fr_12rem]">
           <div>
-            <label for="create-condition-mode" class="mb-2 block font-medium">Match</label>
-            <mat-form-field appearance="outline" class="w-full"><mat-select id="create-condition-mode" formControlName="condition_mode"><mat-option value="all">All conditions</mat-option><mat-option value="any">Any condition</mat-option></mat-select></mat-form-field>
+            <mat-form-field appearance="outline" class="w-full"><mat-label>Match</mat-label><mat-select id="create-condition-mode" formControlName="condition_mode"><mat-option value="all">All conditions</mat-option><mat-option value="any">Any condition</mat-option></mat-select></mat-form-field>
           </div>
           <div>
-            <label for="create-priority" class="mb-2 block font-medium">Priority</label>
-            <mat-form-field appearance="outline" class="w-full"><input id="create-priority" matInput type="number" min="0" formControlName="priority"></mat-form-field>
+            <mat-form-field appearance="outline" class="w-full"><mat-label>Priority</mat-label><input id="create-priority" matInput type="number" min="0" formControlName="priority"></mat-form-field>
           </div>
         </div>
         </section>
@@ -91,8 +89,8 @@
           <div class="rule-editor__section-heading rule-editor__section-heading--numbered"><span>3</span><div><h3>Destination</h3><p>Choose where matching documents and extracted data are sent.</p></div></div>
         <div class="rule-editor__destination grid gap-6 md:grid-cols-2">
           <div>
-            <label for="create-target-folder" class="mb-2 block font-medium">Target folder</label>
             <mat-form-field appearance="outline" class="w-full">
+              <mat-label>Target folder</mat-label>
               <input id="create-target-folder" matInput formControlName="target_folder_name" readonly>
               <button mat-icon-button matSuffix type="button" aria-label="Select target folder" (click)="openFolderPicker('target')" [disabled]="!pickerReady"><svg lucideFolderOpen class="h-5 w-5" aria-hidden="true"></svg></button>
               <mat-hint *ngIf="createRuleForm.controls.target_folder_id.value">{{ createRuleForm.controls.target_folder_id.value }}</mat-hint>
@@ -100,8 +98,8 @@
             </mat-form-field>
           </div>
           <div>
-            <label for="create-target-sheet" class="mb-2 block font-medium">Target spreadsheet</label>
             <mat-form-field appearance="outline" class="w-full">
+              <mat-label>Target spreadsheet</mat-label>
               <input id="create-target-sheet" matInput formControlName="target_sheet_name" readonly>
               <button mat-icon-button matSuffix type="button" aria-label="Select target spreadsheet" (click)="openSheetPicker('create')" [disabled]="!pickerReady"><svg lucideFileSpreadsheet class="h-5 w-5" aria-hidden="true"></svg></button>
               <mat-hint *ngIf="createRuleForm.controls.target_sheet_id.value">{{ createRuleForm.controls.target_sheet_id.value }}</mat-hint>
@@ -109,8 +107,8 @@
             </mat-form-field>
           </div>
           <div>
-            <label for="create-sheet-tab" class="mb-2 block font-medium">Sheet tab name</label>
             <mat-form-field appearance="outline" class="w-full">
+              <mat-label>Sheet tab name</mat-label>
               <input id="create-sheet-tab" matInput formControlName="sheet_tab_name" autocomplete="off">
               <mat-error *ngIf="createRuleForm.controls.sheet_tab_name.hasError('required')">Sheet tab name is required.</mat-error>
               <mat-error *ngIf="createRuleForm.controls.sheet_tab_name.hasError('maxlength')">Use 100 characters or fewer.</mat-error>
@@ -133,8 +131,8 @@
         <section class="rule-editor__details">
         <div class="rule-editor__section-heading rule-editor__section-heading--numbered"><span>1</span><h3>Rule name</h3></div>
         <div>
-          <label for="edit-rule-name" class="mb-2 block font-medium">Rule name</label>
           <mat-form-field appearance="outline" class="w-full">
+            <mat-label>Rule name</mat-label>
             <input id="edit-rule-name" matInput formControlName="rule_name" autocomplete="off">
             <mat-error *ngIf="editRuleForm.controls.rule_name.hasError('required')">Rule name is required.</mat-error>
             <mat-error *ngIf="editRuleForm.controls.rule_name.hasError('maxlength')">Use 120 characters or fewer.</mat-error>
@@ -142,12 +140,10 @@
         </div>
         <div class="grid gap-4 md:grid-cols-[1fr_12rem]">
           <div>
-            <label for="edit-condition-mode" class="mb-2 block font-medium">Match</label>
-            <mat-form-field appearance="outline" class="w-full"><mat-select id="edit-condition-mode" formControlName="condition_mode"><mat-option value="all">All conditions</mat-option><mat-option value="any">Any condition</mat-option></mat-select></mat-form-field>
+            <mat-form-field appearance="outline" class="w-full"><mat-label>Match</mat-label><mat-select id="edit-condition-mode" formControlName="condition_mode"><mat-option value="all">All conditions</mat-option><mat-option value="any">Any condition</mat-option></mat-select></mat-form-field>
           </div>
           <div>
-            <label for="edit-priority" class="mb-2 block font-medium">Priority</label>
-            <mat-form-field appearance="outline" class="w-full"><input id="edit-priority" matInput type="number" min="0" formControlName="priority"></mat-form-field>
+            <mat-form-field appearance="outline" class="w-full"><mat-label>Priority</mat-label><input id="edit-priority" matInput type="number" min="0" formControlName="priority"></mat-form-field>
           </div>
         </div>
         </section>
@@ -165,24 +161,24 @@
           <div class="rule-editor__section-heading rule-editor__section-heading--numbered"><span>3</span><div><h3>Destination</h3><p>Choose where matching documents and extracted data are sent.</p></div></div>
         <div class="rule-editor__destination grid gap-6 md:grid-cols-2">
           <div>
-            <label for="edit-target-folder" class="mb-2 block font-medium">Target folder</label>
             <mat-form-field appearance="outline" class="w-full">
+              <mat-label>Target folder</mat-label>
               <input id="edit-target-folder" matInput formControlName="target_folder_name" readonly>
               <button mat-icon-button matSuffix type="button" aria-label="Select target folder" (click)="openFolderPicker('target', 'edit')" [disabled]="!pickerReady"><svg lucideFolderOpen class="h-5 w-5" aria-hidden="true"></svg></button>
               <mat-error *ngIf="editRuleForm.controls.target_folder_name.hasError('required')">Select a target folder.</mat-error>
             </mat-form-field>
           </div>
           <div>
-            <label for="edit-target-sheet" class="mb-2 block font-medium">Target spreadsheet</label>
             <mat-form-field appearance="outline" class="w-full">
+              <mat-label>Target spreadsheet</mat-label>
               <input id="edit-target-sheet" matInput formControlName="target_sheet_name" readonly>
               <button mat-icon-button matSuffix type="button" aria-label="Select target spreadsheet" (click)="openSheetPicker('edit')" [disabled]="!pickerReady"><svg lucideFileSpreadsheet class="h-5 w-5" aria-hidden="true"></svg></button>
               <mat-error *ngIf="editRuleForm.controls.target_sheet_name.hasError('required')">Select a spreadsheet.</mat-error>
             </mat-form-field>
           </div>
           <div>
-            <label for="edit-sheet-tab" class="mb-2 block font-medium">Sheet tab name</label>
             <mat-form-field appearance="outline" class="w-full">
+              <mat-label>Sheet tab name</mat-label>
               <input id="edit-sheet-tab" matInput formControlName="sheet_tab_name" autocomplete="off">
               <mat-error *ngIf="editRuleForm.controls.sheet_tab_name.hasError('required')">Sheet tab name is required.</mat-error>
               <mat-error *ngIf="editRuleForm.controls.sheet_tab_name.hasError('maxlength')">Use 100 characters or fewer.</mat-error>

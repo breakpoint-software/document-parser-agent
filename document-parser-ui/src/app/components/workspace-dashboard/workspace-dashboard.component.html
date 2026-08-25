@@ -22,26 +22,29 @@
     <form id="workspace-settings-form" [formGroup]="routingForm" (ngSubmit)="saveRouting()" novalidate data-testid="workspace-settings-form">
       <div class="workspace-routing__grid">
       <div class="workspace-routing__field">
-        <label for="workspace-name" class="workspace-routing__label">Workspace</label>
+        <label *ngIf="!isEditing" class="workspace-routing__label">Workspace</label>
         <p *ngIf="!isEditing" class="workspace-routing__value">{{ workspace?.name }}</p>
         <mat-form-field *ngIf="isEditing" appearance="outline" class="w-full">
+          <mat-label>Workspace</mat-label>
           <input id="workspace-name" matInput formControlName="name" data-testid="workspace-name-input">
           <mat-error data-testid="workspace-name-error">Enter a workspace name.</mat-error>
         </mat-form-field>
       </div>
       <div class="workspace-routing__field">
-        <label for="inbox-folder" class="workspace-routing__label">Inbox folder</label>
+        <label *ngIf="!isEditing" class="workspace-routing__label">Inbox folder</label>
         <p *ngIf="!isEditing" class="workspace-routing__value">{{ workspace?.routing?.inbox_folder_name || 'Not configured' }}</p>
         <mat-form-field *ngIf="isEditing" appearance="outline" class="w-full">
+          <mat-label>Inbox folder</mat-label>
           <input id="inbox-folder" matInput formControlName="inbox_folder_name" readonly data-testid="inbox-folder-input">
           <button mat-icon-button matSuffix type="button" aria-label="Select inbox folder" (click)="openInboxPicker()" [disabled]="!pickerReady || !isEditing" data-testid="open-inbox-picker-button"><svg lucideFolderOpen class="h-5 w-5" aria-hidden="true"></svg></button>
           <mat-error>Select an inbox folder.</mat-error>
         </mat-form-field>
       </div>
       <div class="workspace-routing__field">
-        <label for="schema-id" class="workspace-routing__label">Extraction scheme</label>
+        <label *ngIf="!isEditing" class="workspace-routing__label">Extraction scheme</label>
         <p *ngIf="!isEditing" class="workspace-routing__value">{{ extractionSchemeName(workspace?.routing?.schema_id) }}</p>
         <mat-form-field *ngIf="isEditing" appearance="outline" class="w-full">
+          <mat-label>Extraction scheme</mat-label>
           <mat-select id="schema-id" formControlName="schema_id" data-testid="extraction-scheme-select">
             <mat-option *ngFor="let scheme of extractionSchemes" [value]="scheme.schema_id">{{ scheme.name }} (v{{ scheme.version }})</mat-option>
           </mat-select>

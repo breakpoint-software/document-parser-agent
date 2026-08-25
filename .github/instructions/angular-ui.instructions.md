@@ -317,6 +317,23 @@ Prefer spacing, weight, grouping, and alignment before increasing font sizes.
 * Show validation messages after interaction or submission, not on untouched fields.
 * Include disabled and loading states for asynchronous submissions.
 
+## Workspace Form Fields
+
+* Use Angular Material outlined fields for editable workspace text inputs and selects: `<mat-form-field appearance="outline">`.
+* Put the control label in `<mat-label>` so it floats on focus or when the control has a value and sits in the outline's notch.
+* Do not render a separate external label beside an editable outlined field. External labels may remain for read-only workspace values.
+* Preserve the gap around the floating label. If the MDC notch renders an unwanted vertical seam, scope the following fix to the owning workspace component rather than applying it globally:
+
+```scss
+.workspace-routing ::ng-deep .mdc-notched-outline__notch {
+  border-right: 0;
+}
+
+:host-context([dir='rtl']) .workspace-routing ::ng-deep .mdc-notched-outline__notch {
+  border-left: 0;
+}
+```
+
 ---
 
 # Components and Styling
