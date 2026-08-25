@@ -107,7 +107,7 @@ jobs:
             ${{ env.PROCESSOR_IMAGE }}:${{ github.sha }}
 
       - name: Build and push API
-        if: github.event_name == 'workflow_dispatch' || steps.changes.outputs.api == 'true'
+        if: github.event_name == 'workflow_dispatch' || steps.changes.outputs.api == 'true' || steps.changes.outputs.ui == 'true'
         uses: docker/build-push-action@v6
         with:
           context: ./document-parser-api
