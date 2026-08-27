@@ -11,6 +11,7 @@
 
   <section *ngIf="workspace || isNewWorkspace" class="workspace-routing" aria-label="Workspace settings">
     <input #inboxUploadInput type="file" class="sr-only" accept=".txt,.pdf,.docx,.jpg,.jpeg,.png" aria-label="Upload a document to the inbox" (change)="processInboxUpload($event)">
+    <input #inboxCameraInput type="file" class="sr-only" accept="image/*" capture="environment" aria-label="Take a picture for the inbox" (change)="processInboxUpload($event)">
     <div class="workspace-routing__header">
       <h2>Workspace settings</h2>
       <div class="workspace-routing__actions">

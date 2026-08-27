@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Evaluate receipt_ai against the Argentine invoice image dataset."""
+"""Evaluate receipt_ai against the Argentine invoice image and PDF dataset."""
 
 from __future__ import annotations
 
@@ -18,7 +18,11 @@ from openai import OpenAI
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from document_processing import to_data_uri  # noqa: E402
-from receipt_ai import extract_receipt_json_from_image, load_extraction_scheme  # noqa: E402
+from receipt_ai import (  # noqa: E402
+    extract_receipt_json_from_image,
+    extract_receipt_json_from_pdf,
+    load_extraction_scheme,
+)
 
 
 DATASET_DIR = Path(__file__).resolve().parent / "arg-invoices"
@@ -116,12 +120,33 @@ def unsupported_ground_truth_fields(
     )
 
 
+def extract_case_document(
+    client: Any,
+    model: str,
+    source_path: Path,
+    schema_id: str,
+) -> dict[str, Any]:
+    """Extract one validation source using its supported document format."""
+    suffix = source_path.suffix.lower()
+    if suffix == ".pdf":
+        return extract_receipt_json_from_pdf(client, model, source_path, schema_id)
+    if suffix in {".jpg", ".jpeg", ".png"}:
+        return extract_receipt_json_from_image(
+            client,
+            model,
+            source_path,
+            to_data_uri(source_path),
+            schema_id=schema_id,
+        )
+    raise ValueError(f"Unsupported validation source type: {source_path.suffix}")
+
+
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--ground-truth", type=Path, default=DEFAULT_GROUND_TRUTH)
     parser.add_argument("--sources", type=Path, default=DEFAULT_SOURCES)
     parser.add_argument("--schema-id", default=SCHEMA_ID)
-    parser.add_argument("--model", default=os.getenv("OPENAI_MODEL", "gpt-4o"))
+    parser.add_argument("--model", default=os.getenv("OPENAI_MODEL", "gpt-5-mini"))
     return parser.parse_args()
 
 
@@ -149,19 +174,13 @@ def main() -> int:
         print("Not evaluated (absent from the Firebase response schema): " + ", ".join(unsupported))
 
     for case in cases:
-        image_path = args.sources / case["file_name"]
-        if not image_path.is_file():
-            print(f"FAIL {case['id']}: source not found: {image_path}")
+        source_path = args.sources / case["file_name"]
+        if not source_path.is_file():
+            print(f"FAIL {case['id']}: source not found: {source_path}")
             failed_cases += 1
             continue
         try:
-            actual = extract_receipt_json_from_image(
-                client,
-                args.model,
-                image_path,
-                to_data_uri(image_path),
-                schema_id=args.schema_id,
-            )
+            actual = extract_case_document(client, args.model, source_path, args.schema_id)
         except Exception as exc:
             print(f"FAIL {case['id']}: extraction error: {exc}")
             failed_cases += 1

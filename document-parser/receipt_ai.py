@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import base64
 import json
 import logging
 import os
@@ -32,7 +31,6 @@ def get_response_format(extraction_scheme: dict[str, Any]) -> dict[str, Any]:
 def build_user_prompt(
     file_name: str,
     source_type: str,
-    response_format: dict[str, Any],
 ) -> str:
 
     return f"""
@@ -102,7 +100,7 @@ def extract_receipt_json(
         response = client.responses.create(
             model=model,
             instructions=extraction_scheme["parsing_prompt"],
-            input=f"{build_user_prompt(file_path.name, 'text', response_format)}\n\nDocument text:\n{text[:20000]}",
+            input=f"{build_user_prompt(file_path.name, 'text')}\n\nDocument text:\n{text[:20000]}",
             text={"format": {"type": "json_schema", **response_format}},
         )
         
@@ -157,7 +155,7 @@ def extract_receipt_json_from_image(
                     "content": [
                         {
                             "type": "input_text",
-                            "text": build_user_prompt(file_path.name, "image", response_format),
+                            "text": build_user_prompt(file_path.name, "image"),
                         },
                         {
                             "type": "input_image",
@@ -236,7 +234,7 @@ def extract_receipt_json_from_pdf(
                         },
                         {
                             "type": "input_text",
-                            "text": build_user_prompt(file_path.name, "pdf", response_format)
+                            "text": build_user_prompt(file_path.name, "pdf")
                         }
                     ]
                 }
@@ -316,7 +314,7 @@ def extract_receipt_json_from_document(
         response = client.responses.create(
             model=model,
             instructions=extraction_scheme["parsing_prompt"],
-            input=f"{build_user_prompt(file_path.name, 'document', response_format)}\n\nDocument text:\n{text[:20000]}",
+            input=f"{build_user_prompt(file_path.name, 'document')}\n\nDocument text:\n{text[:20000]}",
             text={"format": {"type": "json_schema", **response_format}},
         )
         

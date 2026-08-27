@@ -2,6 +2,7 @@ import { CommonModule } from '@angular/common';
 import { Component, ElementRef, HostListener, OnDestroy, OnInit, ViewChild } from '@angular/core';
 import { ActivatedRoute, Router } from '@angular/router';
 import { MatButtonModule } from '@angular/material/button';
+import { MatBottomSheet, MatBottomSheetModule } from '@angular/material/bottom-sheet';
 import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatInputModule } from '@angular/material/input';
 import { MatSlideToggleModule } from '@angular/material/slide-toggle';
@@ -17,6 +18,7 @@ import { GoogleDriveService } from '../../services/google-drive.service';
 import { ExtractionSchemeService } from '../../services/extraction-scheme';
 import { RulesManagementComponent } from '../unified-dashboard/unified-dashboard.component';
 import { StatusBanner } from '../../shared/components/status-banner/status-banner';
+import { MobileUploadChoice, MobileUploadChoiceComponent } from './mobile-upload-choice.component';
 
 @Component({
   selector: 'app-workspace-dashboard',
@@ -25,6 +27,7 @@ import { StatusBanner } from '../../shared/components/status-banner/status-banne
     CommonModule,
     ReactiveFormsModule,
     MatButtonModule,
+    MatBottomSheetModule,
     MatFormFieldModule,
     MatInputModule,
     MatSlideToggleModule,
@@ -39,6 +42,7 @@ import { StatusBanner } from '../../shared/components/status-banner/status-banne
 })
 export class WorkspaceDashboardComponent implements OnInit, OnDestroy {
   @ViewChild('inboxUploadInput') private inboxUploadInput?: ElementRef<HTMLInputElement>;
+  @ViewChild('inboxCameraInput') private inboxCameraInput?: ElementRef<HTMLInputElement>;
   workspace: Workspace | null = null;
   workspaceId = '';
   isLoading = false;
@@ -55,6 +59,7 @@ export class WorkspaceDashboardComponent implements OnInit, OnDestroy {
 
   constructor(
     formBuilder: FormBuilder,
+    private readonly bottomSheet: MatBottomSheet,
     private readonly workspaceService: WorkspaceService,
     private readonly pickerService: GooglePickerService,
     private readonly driveService: GoogleDriveService,
@@ -182,7 +187,29 @@ export class WorkspaceDashboardComponent implements OnInit, OnDestroy {
 
   @HostListener('window:docparser:upload-inbox')
   openGlobalInboxUpload(): void {
-    if (this.inboxUploadInput) this.selectInboxUpload(this.inboxUploadInput.nativeElement);
+    const uploadInput = this.inboxUploadInput?.nativeElement;
+    if (!uploadInput) return;
+
+    if (!window.matchMedia('(max-width: 767px)').matches) {
+      this.selectInboxUpload(uploadInput);
+      return;
+    }
+
+    if (this.isProcessingUpload || !this.workspace?.routing?.inbox_folder_id) {
+      this.errorMessage = 'Configure and save an inbox folder before uploading a file.';
+      return;
+    }
+
+    this.bottomSheet.open<MobileUploadChoiceComponent, never, MobileUploadChoice>(
+      MobileUploadChoiceComponent,
+      { ariaLabel: 'Choose how to add a document' }
+    ).afterDismissed().pipe(takeUntil(this.destroy$)).subscribe(choice => {
+      if (choice === 'camera' && this.inboxCameraInput) {
+        this.selectInboxUpload(this.inboxCameraInput.nativeElement);
+      } else if (choice === 'file') {
+        this.selectInboxUpload(uploadInput);
+      }
+    });
   }
 
   processInboxUpload(event: Event): void {

@@ -85,6 +85,7 @@ export class AppComponent {
     { initialValue: true }
   );
   readonly isAuthenticated = toSignal(this.authService.isAuthenticated$, { initialValue: false });
+  readonly currentUser = toSignal(this.authService.currentUser$, { initialValue: null });
   readonly isDarkMode = signal(this.getInitialTheme());
   readonly workspaces = signal<Workspace[]>([]);
   private readonly workspaceId = computed(() => {
@@ -98,6 +99,12 @@ export class AppComponent {
   readonly currentWorkspace = computed(() =>
     this.workspaces().find(workspace => this.workspaceKey(workspace) === this.workspaceId())?.name || 'Select workspace'
   );
+  readonly accountInitials = computed(() => {
+    const user = this.currentUser();
+    const source = user?.displayName?.trim() || user?.email?.split('@')[0] || 'User';
+    const parts = source.split(/\s+/).filter(Boolean);
+    return (parts.length > 1 ? `${parts[0][0]}${parts.at(-1)?.[0] || ''}` : source.slice(0, 2)).toUpperCase();
+  });
   readonly pageTitle = computed(() => {
     const url = this.currentUrl();
     if (url.startsWith('/rules/')) return 'Rules';
@@ -160,6 +167,10 @@ export class AppComponent {
 
   toggleTheme(): void {
     this.isDarkMode.update(value => !value);
+  }
+
+  hideBrokenAvatar(event: Event): void {
+    (event.currentTarget as HTMLImageElement).hidden = true;
   }
 
   requestInboxUpload(): void {

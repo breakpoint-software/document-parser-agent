@@ -15,7 +15,10 @@
       <div *ngIf="isAuthenticated()" class="toolbar-utilities">
         <button mat-icon-button type="button" style="display: none; "aria-label="Help" matTooltip="Help"><svg lucideCircleHelp class="h-5 w-5" aria-hidden="true"></svg></button>
         <button mat-icon-button type="button" (click)="toggleTheme()" [attr.aria-label]="isDarkMode() ? 'Use light theme' : 'Use dark theme'" [matTooltip]="isDarkMode() ? 'Light theme' : 'Dark theme'"><svg *ngIf="!isDarkMode()" lucideMoon class="h-5 w-5" aria-hidden="true"></svg><svg *ngIf="isDarkMode()" lucideSun class="h-5 w-5" aria-hidden="true"></svg></button>
-        <a class="account-avatar" routerLink="/" aria-label="Account" matTooltip="Account">SS</a>
+        <a class="account-avatar" routerLink="/" aria-label="Account" matTooltip="Account">
+          <span aria-hidden="true">{{ accountInitials() }}</span>
+          <img *ngIf="currentUser()?.photoURL as photoUrl" [src]="photoUrl" alt="" referrerpolicy="no-referrer" (error)="hideBrokenAvatar($event)">
+        </a>
       </div>
     </div>
   </mat-toolbar>

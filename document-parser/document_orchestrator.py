@@ -13,7 +13,7 @@ from typing import Any
 from dotenv import load_dotenv
 from openai import OpenAI
 
-from document_processing import extract_text, is_image_document, to_data_uri
+from document_processing import to_data_uri
 from document_identity import build_document_identity
 from firebase_processed_files import (
 	build_firebase_tracker,

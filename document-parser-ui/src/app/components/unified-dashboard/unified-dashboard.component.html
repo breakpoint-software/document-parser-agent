@@ -14,6 +14,7 @@
   <mat-card appearance="outlined" class="rules-card" [class.rule-editor-card]="isRuleEditor">
     <mat-card-header *ngIf="!isRuleEditor" class="rules-card-header px-4 pt-5 sm:px-6 sm:pt-6">
       <mat-card-title class="text-xl leading-7">Rules</mat-card-title>
+      <mat-card-subtitle class="rules-card-subtitle md:hidden">Manage your extraction rules and conditions.</mat-card-subtitle>
     </mat-card-header>
 
     <mat-card-content class="rules-card-content space-y-6 px-4 pb-5 pt-4 sm:px-6 sm:pb-6" [class.rule-editor-content]="isRuleEditor">
@@ -195,28 +196,35 @@
 
       <div *ngIf="!showAddForm && !editingRule">
         <p *ngIf="filteredRules.length === 0" class="py-6 text-center">No rules match your filters.</p>
-        <div *ngIf="filteredRules.length > 0" class="divide-y xl:hidden">
-          <article *ngFor="let rule of filteredRules" class="space-y-4 py-5 first:pt-0 last:pb-0">
-            <div class="flex items-start justify-between gap-4">
-              <div class="min-w-0">
-                <h3 class="truncate text-lg font-medium">{{ rule.rule_name }}</h3>
-                <p class="truncate text-sm">{{ rule.rule_id }}</p>
+        <div *ngIf="filteredRules.length > 0" class="rule-card-list md:hidden">
+          <article *ngFor="let rule of filteredRules" class="rule-card">
+            <div class="rule-card__header">
+              <div class="rule-card__identity">
+                <h3>{{ rule.rule_name }}</h3>
               </div>
               <mat-slide-toggle [checked]="rule.is_enabled" (change)="toggleRuleEnabled(rule)" [attr.aria-label]="(rule.is_enabled ? 'Disable ' : 'Enable ') + rule.rule_name"></mat-slide-toggle>
             </div>
-            <dl class="grid grid-cols-[max-content_1fr] gap-x-4 gap-y-2 text-sm">
-              <dt>Conditions</dt><dd>{{ rule.conditions?.length || 0 }}</dd>
-              <dt>Target</dt><dd class="min-w-0 truncate">{{ rule.target_folder_name || rule.target_folder_id }}</dd>
-              <dt>Sheet tab</dt><dd>{{ rule.sheet_tab_name }}</dd>
-              <dt>Updated</dt><dd>{{ rule.updated_at | date: 'mediumDate' }}</dd>
+            <dl class="rule-card__metadata">
+              <div class="rule-card__metadata-row">
+                <svg lucideListChecks aria-hidden="true"></svg><dt>Conditions</dt><dd>{{ rule.conditions?.length || 0 }}</dd>
+              </div>
+              <div class="rule-card__metadata-row">
+                <svg lucideFolderOpen aria-hidden="true"></svg><dt>Target</dt><dd class="rule-card__path">{{ rule.target_folder_name || rule.target_folder_id }}</dd>
+              </div>
+              <div class="rule-card__metadata-row">
+                <svg lucideFileSpreadsheet aria-hidden="true"></svg><dt>Sheet tab</dt><dd>{{ rule.sheet_tab_name }}</dd>
+              </div>
+              <div class="rule-card__metadata-row">
+                <svg lucideCalendarDays aria-hidden="true"></svg><dt>Updated</dt><dd>{{ rule.updated_at | date: 'mediumDate' }}</dd>
+              </div>
             </dl>
-            <div class="flex flex-wrap gap-2">
-              <button mat-stroked-button class="responsive-action" type="button" [attr.aria-label]="'Edit ' + rule.rule_name" (click)="navigateToEdit(rule)"><svg lucidePencil class="responsive-action__icon mr-2 inline h-4 w-4" aria-hidden="true"></svg><span class="sr-only sm:not-sr-only">Edit</span></button>
-              <button mat-button class="responsive-action" type="button" [attr.aria-label]="'Delete ' + rule.rule_name" (click)="deleteRule(rule.rule_id)" [disabled]="deletingRuleId === rule.rule_id"><svg lucideTrash2 class="responsive-action__icon mr-2 inline h-4 w-4" aria-hidden="true"></svg><span class="sr-only sm:not-sr-only">Delete</span></button>
+            <div class="rule-card__actions">
+              <button mat-stroked-button class="rule-card__edit" type="button" [attr.aria-label]="'Edit ' + rule.rule_name" (click)="navigateToEdit(rule)"><svg lucidePencil aria-hidden="true"></svg><span>Edit</span></button>
+              <button mat-stroked-button class="rule-card__delete" type="button" [attr.aria-label]="'Delete ' + rule.rule_name" (click)="deleteRule(rule.rule_id)" [disabled]="deletingRuleId === rule.rule_id"><svg lucideTrash2 aria-hidden="true"></svg><span>Delete</span></button>
             </div>
           </article>
         </div>
-        <div *ngIf="filteredRules.length > 0" class="hidden overflow-x-auto xl:block">
+        <div *ngIf="filteredRules.length > 0" class="hidden overflow-x-auto md:block">
         <table mat-table [dataSource]="filteredRules" class="rules-grid w-full">
           <ng-container matColumnDef="enabled">
             <th mat-header-cell *matHeaderCellDef>Status</th>
@@ -224,7 +232,7 @@
           </ng-container>
           <ng-container matColumnDef="name">
             <th mat-header-cell *matHeaderCellDef>Rule</th>
-            <td mat-cell *matCellDef="let rule"><strong>{{ rule.rule_name }}</strong><br><small>{{ rule.rule_id }}</small></td>
+            <td mat-cell *matCellDef="let rule"><strong>{{ rule.rule_name }}</strong></td>
           </ng-container>
           <ng-container matColumnDef="pipeline">
             <th mat-header-cell *matHeaderCellDef>Pipeline</th>
