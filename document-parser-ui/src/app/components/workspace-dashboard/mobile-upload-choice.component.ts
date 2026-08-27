@@ -1,9 +1,13 @@
 import { Component, inject } from '@angular/core';
-import { MatBottomSheetRef } from '@angular/material/bottom-sheet';
+import { MAT_BOTTOM_SHEET_DATA, MatBottomSheetRef } from '@angular/material/bottom-sheet';
 import { MatListModule } from '@angular/material/list';
 import { LucideCamera, LucideFileUp } from '@lucide/angular';
 
 export type MobileUploadChoice = 'file' | 'camera';
+
+export interface MobileUploadChoiceData {
+  select: (choice: MobileUploadChoice) => void;
+}
 
 @Component({
   selector: 'app-mobile-upload-choice',
@@ -30,8 +34,12 @@ export type MobileUploadChoice = 'file' | 'camera';
 })
 export class MobileUploadChoiceComponent {
   private readonly sheetRef = inject(MatBottomSheetRef<MobileUploadChoiceComponent>);
+  private readonly data = inject<MobileUploadChoiceData>(MAT_BOTTOM_SHEET_DATA);
 
   choose(choice: MobileUploadChoice): void {
+    // Mobile browsers require file inputs to be opened synchronously from the
+    // user's tap. Waiting for afterDismissed() loses that user activation.
+    this.data.select(choice);
     this.sheetRef.dismiss(choice);
   }
 }

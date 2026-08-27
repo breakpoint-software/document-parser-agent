@@ -18,7 +18,7 @@ import { GoogleDriveService } from '../../services/google-drive.service';
 import { ExtractionSchemeService } from '../../services/extraction-scheme';
 import { RulesManagementComponent } from '../unified-dashboard/unified-dashboard.component';
 import { StatusBanner } from '../../shared/components/status-banner/status-banner';
-import { MobileUploadChoice, MobileUploadChoiceComponent } from './mobile-upload-choice.component';
+import { MobileUploadChoiceComponent, MobileUploadChoiceData } from './mobile-upload-choice.component';
 
 @Component({
   selector: 'app-workspace-dashboard',
@@ -200,16 +200,21 @@ export class WorkspaceDashboardComponent implements OnInit, OnDestroy {
       return;
     }
 
-    this.bottomSheet.open<MobileUploadChoiceComponent, never, MobileUploadChoice>(
-      MobileUploadChoiceComponent,
-      { ariaLabel: 'Choose how to add a document' }
-    ).afterDismissed().pipe(takeUntil(this.destroy$)).subscribe(choice => {
-      if (choice === 'camera' && this.inboxCameraInput) {
-        this.selectInboxUpload(this.inboxCameraInput.nativeElement);
-      } else if (choice === 'file') {
-        this.selectInboxUpload(uploadInput);
+    const cameraInput = this.inboxCameraInput?.nativeElement;
+    const data: MobileUploadChoiceData = {
+      select: choice => {
+        if (choice === 'camera' && cameraInput) {
+          this.selectInboxUpload(cameraInput);
+        } else if (choice === 'file') {
+          this.selectInboxUpload(uploadInput);
+        }
       }
-    });
+    };
+
+    this.bottomSheet.open<MobileUploadChoiceComponent, MobileUploadChoiceData>(
+      MobileUploadChoiceComponent,
+      { ariaLabel: 'Choose how to add a document', data }
+    );
   }
 
   processInboxUpload(event: Event): void {
