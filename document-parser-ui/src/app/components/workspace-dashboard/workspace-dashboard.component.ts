@@ -8,8 +8,8 @@ import { MatInputModule } from '@angular/material/input';
 import { MatSlideToggleModule } from '@angular/material/slide-toggle';
 import { MatSelectModule } from '@angular/material/select';
 import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
-import { LucideFolderOpen, LucidePencil } from '@lucide/angular';
-import { Subject } from 'rxjs';
+import { LucideChevronDown, LucideCircleCheck, LucideFile, LucideFolderOpen, LucidePencil, LucideX } from '@lucide/angular';
+import { Subject, Subscription } from 'rxjs';
 import { switchMap, takeUntil } from 'rxjs/operators';
 import { ExtractionSchemeSummary, Workspace } from '../../models';
 import { WorkspaceService } from '../../services/workspace';
@@ -19,6 +19,15 @@ import { ExtractionSchemeService } from '../../services/extraction-scheme';
 import { RulesManagementComponent } from '../unified-dashboard/unified-dashboard.component';
 import { StatusBanner } from '../../shared/components/status-banner/status-banner';
 import { MobileUploadChoiceComponent, MobileUploadChoiceData } from './mobile-upload-choice.component';
+
+type UploadStatus = 'uploading' | 'processing' | 'complete' | 'failed' | 'cancelled';
+
+interface InboxUploadItem {
+  id: number;
+  name: string;
+  status: UploadStatus;
+  detail: string;
+}
 
 @Component({
   selector: 'app-workspace-dashboard',
@@ -34,6 +43,10 @@ import { MobileUploadChoiceComponent, MobileUploadChoiceData } from './mobile-up
     MatSelectModule,
     LucideFolderOpen,
     LucidePencil,
+    LucideChevronDown,
+    LucideCircleCheck,
+    LucideFile,
+    LucideX,
     RulesManagementComponent,
     StatusBanner
   ],
@@ -51,11 +64,22 @@ export class WorkspaceDashboardComponent implements OnInit, OnDestroy {
   pickerReady = false;
   isEditing = false;
   isNewWorkspace = false;
-  isProcessingUpload = false;
+  uploadItems: InboxUploadItem[] = [];
+  uploadPanelOpen = true;
   extractionSchemes: Array<Pick<ExtractionSchemeSummary, 'schema_id' | 'name' | 'version'>> = [];
   readonly routingForm;
 
   private readonly destroy$ = new Subject<void>();
+  private readonly uploadSubscriptions = new Map<number, Subscription>();
+  private nextUploadId = 1;
+
+  get isProcessingUpload(): boolean {
+    return this.uploadItems.some(item => item.status === 'uploading' || item.status === 'processing');
+  }
+
+  get completedUploadCount(): number {
+    return this.uploadItems.filter(item => item.status === 'complete').length;
+  }
 
   constructor(
     formBuilder: FormBuilder,
@@ -106,6 +130,7 @@ export class WorkspaceDashboardComponent implements OnInit, OnDestroy {
   }
 
   ngOnDestroy(): void {
+    this.uploadSubscriptions.forEach(subscription => subscription.unsubscribe());
     this.destroy$.next();
     this.destroy$.complete();
   }
@@ -176,7 +201,7 @@ export class WorkspaceDashboardComponent implements OnInit, OnDestroy {
   }
 
   selectInboxUpload(fileInput: HTMLInputElement): void {
-    if (this.isProcessingUpload || !this.workspace?.routing?.inbox_folder_id) {
+    if (!this.workspace?.routing?.inbox_folder_id) {
       this.errorMessage = 'Configure and save an inbox folder before uploading a file.';
       return;
     }
@@ -195,7 +220,7 @@ export class WorkspaceDashboardComponent implements OnInit, OnDestroy {
       return;
     }
 
-    if (this.isProcessingUpload || !this.workspace?.routing?.inbox_folder_id) {
+    if (!this.workspace?.routing?.inbox_folder_id) {
       this.errorMessage = 'Configure and save an inbox folder before uploading a file.';
       return;
     }
@@ -219,54 +244,105 @@ export class WorkspaceDashboardComponent implements OnInit, OnDestroy {
 
   processInboxUpload(event: Event): void {
     const input = event.target as HTMLInputElement;
-    const file = input.files?.[0];
+    const files = Array.from(input.files || []);
     input.value = '';
-    if (!file || !this.workspace?.routing?.inbox_folder_id) return;
+    if (!files.length || !this.workspace?.routing?.inbox_folder_id) return;
 
+    this.errorMessage = '';
+    this.successMessage = '';
+    this.uploadPanelOpen = true;
+    files.forEach(file => this.startInboxUpload(file));
+  }
+
+  cancelUploads(): void {
+    this.uploadItems.forEach(item => {
+      if (item.status === 'uploading' || item.status === 'processing') {
+        this.uploadSubscriptions.get(item.id)?.unsubscribe();
+        this.uploadSubscriptions.delete(item.id);
+        item.status = 'cancelled';
+        item.detail = 'Cancelled';
+      }
+    });
+  }
+
+  dismissUploadPanel(): void {
+    if (this.isProcessingUpload) this.cancelUploads();
+    this.uploadItems = [];
+  }
+
+  uploadStatusLabel(item: InboxUploadItem): string {
+    switch (item.status) {
+      case 'uploading': return 'Uploading';
+      case 'processing': return 'Processing';
+      case 'complete': return 'Processed';
+      case 'failed': return 'Failed';
+      default: return 'Cancelled';
+    }
+  }
+
+  private startInboxUpload(file: File): void {
     const extension = file.name.slice(file.name.lastIndexOf('.')).toLowerCase();
+    const item: InboxUploadItem = {
+      id: this.nextUploadId++,
+      name: file.name,
+      status: 'uploading',
+      detail: 'Uploading to inbox'
+    };
+    this.uploadItems.push(item);
+
     if (!['.txt', '.pdf', '.docx', '.jpg', '.jpeg', '.png'].includes(extension)) {
-      this.errorMessage = 'Choose a TXT, PDF, DOCX, JPG, JPEG, or PNG file.';
+      item.status = 'failed';
+      item.detail = 'Unsupported file type';
       return;
     }
 
-    this.isProcessingUpload = true;
-    this.errorMessage = '';
-    this.successMessage = '';
-    this.driveService.uploadFile(file, this.workspace.routing.inbox_folder_id)
+    const inboxFolderId = this.workspace?.routing?.inbox_folder_id;
+    if (!inboxFolderId) return;
+
+    const uploadSubscription = this.driveService.uploadFile(file, inboxFolderId)
       .pipe(takeUntil(this.destroy$))
       .subscribe({
         next: uploadedFile => {
           const fileId = typeof uploadedFile?.id === 'string' ? uploadedFile.id : '';
           if (!fileId) {
-            this.isProcessingUpload = false;
-            this.errorMessage = 'The uploaded file did not return a Drive ID.';
+            item.status = 'failed';
+            item.detail = 'Upload did not return a Drive ID';
+            this.uploadSubscriptions.delete(item.id);
             return;
           }
 
-          this.workspaceService.processInboxUpload(this.workspaceId, fileId)
+          item.status = 'processing';
+          item.detail = 'Extracting document data';
+          const processingSubscription = this.workspaceService.processInboxUpload(this.workspaceId, fileId)
             .pipe(takeUntil(this.destroy$))
             .subscribe({
               next: response => {
-                this.isProcessingUpload = false;
                 if (response.result.status === 'Failed') {
-                  this.errorMessage = `${file.name} did not match an enabled rule.`;
+                  item.status = 'failed';
+                  item.detail = 'Did not match an enabled rule';
                   return;
                 }
-                this.successMessage = response.result.duplicate
-                  ? `${file.name} was already processed.`
-                  : `${file.name} was processed${response.result.selected_rule_name ? ` by ${response.result.selected_rule_name}` : ''}.`;
+                item.status = 'complete';
+                item.detail = response.result.duplicate
+                  ? 'Already processed'
+                  : response.result.selected_rule_name ? `Processed by ${response.result.selected_rule_name}` : 'Processing complete';
               },
               error: error => {
-                this.isProcessingUpload = false;
-                this.errorMessage = error.error?.error || 'Unable to process the uploaded file.';
-              }
+                item.status = 'failed';
+                item.detail = error.error?.error || 'Unable to process file';
+                this.uploadSubscriptions.delete(item.id);
+              },
+              complete: () => this.uploadSubscriptions.delete(item.id)
             });
+          this.uploadSubscriptions.set(item.id, processingSubscription);
         },
         error: error => {
-          this.isProcessingUpload = false;
-          this.errorMessage = error.error?.error || error.message || 'Unable to upload the selected file to the inbox.';
+          item.status = 'failed';
+          item.detail = error.error?.error || error.message || 'Unable to upload file';
+          this.uploadSubscriptions.delete(item.id);
         }
       });
+    this.uploadSubscriptions.set(item.id, uploadSubscription);
   }
 
   extractionSchemeName(schemaId: string | null | undefined): string {

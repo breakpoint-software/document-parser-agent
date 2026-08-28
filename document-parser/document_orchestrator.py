@@ -222,7 +222,7 @@ def orchestrate_single_rule(
 			"rule_id": rule.rule_id,
 		}
 	
-	if not workspace_config.credentials.google_refresh_token:
+	if not workspace_config.google_refresh_token:
 		logger.error("Workspace=%s rule=%s missing refresh_token", workspace_id, rule.rule_id)
 		return {
 			"ok": False,
@@ -249,7 +249,7 @@ def orchestrate_single_rule(
 	scan_temp_dir: str | None = None
 	try:
 		google_credentials = build_google_oauth_credentials(
-			workspace_config.credentials.google_refresh_token,
+			workspace_config.google_refresh_token,
 			GOOGLE_OAUTH_SCOPES,
 		)
 		drive_service = build_drive_service(scope=[DRIVE_FILE_SCOPE, DRIVE_METADATA_READONLY_SCOPE], credentials=google_credentials)
@@ -595,7 +595,7 @@ def process_uploaded_inbox_file(
 	openai_api_key = _get_openai_api_key_from_env()
 	if not openai_api_key:
 		raise RuntimeError("Document processing is not configured.")
-	if not workspace_config.credentials.google_refresh_token:
+	if not workspace_config.google_refresh_token:
 		raise RuntimeError("Workspace Google authorization is missing.")
 
 	config_manager = FirebaseWorkspaceConfigManager()
@@ -608,7 +608,7 @@ def process_uploaded_inbox_file(
 	)
 	extraction_scheme = config_manager.get_extraction_scheme(routing.schema_id)
 	google_credentials = build_google_oauth_credentials(
-		workspace_config.credentials.google_refresh_token,
+		workspace_config.google_refresh_token,
 		GOOGLE_OAUTH_SCOPES,
 	)
 	drive_service = build_drive_service(
@@ -797,7 +797,7 @@ def orchestrate_single_source(
 			"execution_mode": "single_source",
 			"error": "Missing OPENAI_API_KEY environment variable",
 		}
-	if not workspace_config.credentials.google_refresh_token:
+	if not workspace_config.google_refresh_token:
 		return {
 			"ok": False,
 			"workspace_id": workspace_id,
@@ -827,7 +827,7 @@ def orchestrate_single_source(
 	scan_temp_dir: str | None = None
 	try:
 		google_credentials = build_google_oauth_credentials(
-			workspace_config.credentials.google_refresh_token,
+			workspace_config.google_refresh_token,
 			GOOGLE_OAUTH_SCOPES,
 		)
 		drive_service = build_drive_service(

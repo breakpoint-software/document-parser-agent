@@ -28,8 +28,23 @@ class GoogleOAuthTests(unittest.TestCase):
             "workspace-123",
         )
 
-        self.assertEqual(workspace.credentials.google_refresh_token, "saved-refresh-token")
+        self.assertEqual(workspace.google_refresh_token, "saved-refresh-token")
         self.assertEqual(workspace.credentials.openai_api_key, "openai-key")
+
+    def test_workspace_does_not_read_refresh_token_from_credentials(self) -> None:
+        workspace = WorkspaceConfig.from_dict(
+            {
+                "active": True,
+                "credentials": {
+                    "openai_api_key": "openai-key",
+                    "google_refresh_token": "nested-refresh-token",
+                },
+                "execution_mode": "source_by_rule",
+            },
+            "workspace-123",
+        )
+
+        self.assertEqual(workspace.google_refresh_token, "")
 
     def test_builds_user_oauth_credentials(self) -> None:
         with patch.dict(

@@ -149,7 +149,7 @@
 
 .rule-card-list {
   display: grid;
-  gap: 1.125rem;
+  gap: 1rem;
 }
 
 .rule-card {
@@ -526,6 +526,24 @@
 :host-context(.dark) .filter-select svg,
 :host-context(.dark) .filter-search input::placeholder {
   color: #a3a3a3;
+}
+
+.rules-card--embedded {
+  --mat-card-outlined-container-color: transparent;
+  --mat-card-outlined-outline-color: transparent;
+  overflow: visible;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+}
+
+.rules-card--embedded .rules-card-header {
+  padding: 1.5rem 0 0;
+}
+
+.rules-card--embedded .rules-card-content {
+  padding: 1.25rem 0 0;
 }
 
 @media (max-width: 639px) {

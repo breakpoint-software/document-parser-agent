@@ -77,7 +77,7 @@ def validate_workspace_folder(
         raise RuntimeError(f"Workspace not found: {workspace_id}")
     if not workspace.active:
         raise RuntimeError(f"Workspace is inactive: {workspace_id}")
-    if not workspace.credentials.google_refresh_token:
+    if not workspace.google_refresh_token:
         raise RuntimeError(f"Workspace has no Google refresh token: {workspace_id}")
 
     if workspace.execution_mode == "single_source":
@@ -239,7 +239,7 @@ def main() -> None:
     workspace = validate_workspace_folder(manager, args.workspace_id, args.drive_folder_id)
     print("Validating Google Drive destination...", flush=True)
     drive_service = build_drive_service(
-        refresh_token=workspace.credentials.google_refresh_token
+        refresh_token=workspace.google_refresh_token
     )
     folder = validate_drive_folder(drive_service, args.drive_folder_id)
 

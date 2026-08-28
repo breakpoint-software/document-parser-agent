@@ -11,7 +11,7 @@
   <app-status-banner *ngIf="errorMessage" type="error" [message]="errorMessage" (dismissed)="errorMessage = ''" />
   <app-status-banner *ngIf="successMessage" type="success" [message]="successMessage" (dismissed)="successMessage = ''" />
 
-  <mat-card appearance="outlined" class="rules-card" [class.rule-editor-card]="isRuleEditor">
+  <mat-card appearance="outlined" class="rules-card" [class.rules-card--embedded]="embedded" [class.rule-editor-card]="isRuleEditor">
     <mat-card-header *ngIf="!isRuleEditor" class="rules-card-header px-4 pt-5 sm:px-6 sm:pt-6">
       <mat-card-title class="text-xl leading-7">Rules</mat-card-title>
       <mat-card-subtitle class="rules-card-subtitle md:hidden">Manage your extraction rules and conditions.</mat-card-subtitle>

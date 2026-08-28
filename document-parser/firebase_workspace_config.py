@@ -20,7 +20,6 @@ class FirebaseConfigError(RuntimeError):
 class CredentialsObject:
     """OAuth and API keys for a workspace."""
     openai_api_key: str
-    google_refresh_token: str
 
 
 ExecutionMode = Literal["single_source", "source_by_rule"]
@@ -158,6 +157,7 @@ class WorkspaceConfig:
     name: str
     active: bool
     credentials: CredentialsObject
+    google_refresh_token: str
     execution_mode: ExecutionMode
     rules: list[RuleObject] | None = None
     created_at: str | None = None
@@ -171,7 +171,7 @@ class WorkspaceConfig:
             "credentials": {
                 "openai_api_key": self.credentials.openai_api_key,
             },
-            "refresh_token": self.credentials.google_refresh_token,
+            "refresh_token": self.google_refresh_token,
             "created_at": self.created_at,
             "execution_mode": self.execution_mode,
             "routing": {
@@ -194,13 +194,13 @@ class WorkspaceConfig:
             raise FirebaseConfigError(f"Workspace '{workspace_id}' must define credentials.")
         credentials = CredentialsObject(
             openai_api_key=str(creds_data.get("openai_api_key") or "").strip(),
-            google_refresh_token=str(data.get("refresh_token") or creds_data.get("google_refresh_token") or "").strip(),
         )
         return WorkspaceConfig(
             workspace_id=workspace_id,
             name=str(data.get("name") or "").strip(),
             active=bool(data["active"]),
             credentials=credentials,
+            google_refresh_token=str(data.get("refresh_token") or "").strip(),
             rules=None,
             created_at=data.get("created_at"),
             execution_mode=execution_mode,

@@ -9,8 +9,9 @@
   <app-status-banner *ngIf="errorMessage" type="error" [message]="errorMessage" (dismissed)="errorMessage = ''" data-testid="error-banner" />
   <app-status-banner *ngIf="successMessage" type="success" [message]="successMessage" (dismissed)="successMessage = ''" data-testid="success-banner" />
 
+  <div class="workspace-card">
   <section *ngIf="workspace || isNewWorkspace" class="workspace-routing" aria-label="Workspace settings">
-    <input #inboxUploadInput type="file" class="sr-only" accept=".txt,.pdf,.docx,.jpg,.jpeg,.png" aria-label="Upload a document to the inbox" (change)="processInboxUpload($event)">
+    <input #inboxUploadInput type="file" class="sr-only" accept=".txt,.pdf,.docx,.jpg,.jpeg,.png" multiple aria-label="Upload documents to the inbox" (change)="processInboxUpload($event)">
     <input #inboxCameraInput type="file" class="sr-only" accept="image/*" capture="environment" aria-label="Take a picture for the inbox" (change)="processInboxUpload($event)">
     <div class="workspace-routing__header">
       <h2>Workspace settings</h2>
@@ -61,5 +62,37 @@
     </form>
   </section>
 
-  <app-rules-management *ngIf="workspace" [workspaceId]="workspaceId" [schemaId]="routingForm.controls.schema_id.value" [embedded]="true"></app-rules-management>
+  <app-rules-management *ngIf="workspace" class="workspace-card__rules" [workspaceId]="workspaceId" [schemaId]="routingForm.controls.schema_id.value" [embedded]="true"></app-rules-management>
+  </div>
+
+  <aside *ngIf="uploadItems.length" class="upload-panel" [class.upload-panel--collapsed]="!uploadPanelOpen" aria-live="polite" data-testid="upload-status-panel">
+    <div class="upload-panel__header">
+      <button class="upload-panel__summary" type="button" (click)="uploadPanelOpen = !uploadPanelOpen" [attr.aria-expanded]="uploadPanelOpen">
+        <span class="upload-panel__heading">
+          <span class="upload-panel__title">Files</span>
+          <span class="upload-panel__progress">{{ isProcessingUpload ? 'Uploading ' + uploadItems.length + (uploadItems.length === 1 ? ' item' : ' items') : completedUploadCount + ' of ' + uploadItems.length + ' processed' }}</span>
+        </span>
+        <svg lucideChevronDown class="upload-panel__chevron" aria-hidden="true"></svg>
+      </button>
+      <button class="upload-panel__close" type="button" aria-label="Dismiss upload status" (click)="dismissUploadPanel()"><svg lucideX aria-hidden="true"></svg></button>
+    </div>
+    <ng-container *ngIf="uploadPanelOpen">
+      <div *ngIf="isProcessingUpload" class="upload-panel__subheader">
+        <span>Uploading and processing in the background…</span>
+        <button type="button" (click)="cancelUploads()">Cancel</button>
+      </div>
+      <div class="upload-panel__list">
+        <div *ngFor="let item of uploadItems" class="upload-item" [attr.data-status]="item.status">
+          <svg lucideFile class="upload-item__file" aria-hidden="true"></svg>
+          <div class="upload-item__text">
+            <span class="upload-item__name" [title]="item.name">{{ item.name }}</span>
+            <small>{{ item.detail }}</small>
+          </div>
+          <svg *ngIf="item.status === 'complete'" lucideCircleCheck class="upload-item__complete" [attr.aria-label]="uploadStatusLabel(item)"></svg>
+          <span *ngIf="item.status === 'uploading' || item.status === 'processing'" class="upload-item__spinner" role="status" [attr.aria-label]="uploadStatusLabel(item)"></span>
+          <span *ngIf="item.status === 'failed' || item.status === 'cancelled'" class="upload-item__failure" [attr.aria-label]="uploadStatusLabel(item)">!</span>
+        </div>
+      </div>
+    </ng-container>
+  </aside>
 </div>
